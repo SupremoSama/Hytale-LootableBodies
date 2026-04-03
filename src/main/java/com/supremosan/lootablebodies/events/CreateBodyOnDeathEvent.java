@@ -12,7 +12,6 @@ import com.hypixel.hytale.math.util.MathUtil;
 import com.hypixel.hytale.protocol.GameMode;
 import com.hypixel.hytale.server.core.asset.type.gameplay.DeathConfig;
 import com.hypixel.hytale.server.core.asset.type.gameplay.DeathConfig.ItemsLossMode;
-import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.inventory.InventoryComponent;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
@@ -25,7 +24,7 @@ import com.hypixel.hytale.server.core.modules.entitystats.EntityStatMap;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
-import com.hypixel.hytale.server.core.util.UUIDUtil;
+import com.supremosan.lootablebodies.components.BodySource;
 import com.supremosan.lootablebodies.system.BodyManager;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import org.jspecify.annotations.NonNull;
@@ -43,8 +42,8 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
     @Override
     public @NonNull Set<Dependency<EntityStore>> getDependencies() {
         return Set.of(
-                new SystemDependency(Order.AFTER, DeathSystems.PlayerDropItemsConfig.class),
-                new SystemDependency(Order.BEFORE, DeathSystems.DropPlayerDeathItems.class)
+                new SystemDependency<>(Order.AFTER, DeathSystems.PlayerDropItemsConfig.class),
+                new SystemDependency<>(Order.BEFORE, DeathSystems.DropPlayerDeathItems.class)
         );
     }
 
@@ -119,13 +118,6 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
             }
         }
 
-        ItemStack[] armorStacks = new ItemStack[armorContainer != null ? armorContainer.getCapacity() : 0];
-        if (armorContainer != null) {
-            for (short i = 0; i < armorStacks.length; ++i) {
-                armorStacks[i] = armorContainer.getItemStack(i);
-            }
-        }
-
         List<ItemStack> itemsToDrop = null;
 
         switch (deathConfig.getItemsLossMode()) {
@@ -138,6 +130,15 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
                         if (!ItemStack.isEmpty(stack)) {
                             itemsToDrop.add(stack);
                             itemContainer.removeItemStackFromSlot(i);
+                        }
+                    }
+                }
+                if (armorContainer != null) {
+                    for (short i = 0; i < armorContainer.getCapacity(); ++i) {
+                        ItemStack stack = armorContainer.getItemStack(i);
+                        if (!ItemStack.isEmpty(stack)) {
+                            itemsToDrop.add(stack);
+                            armorContainer.removeItemStackFromSlot(i);
                         }
                     }
                 }
@@ -164,6 +165,22 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
                             }
                         }
                     }
+
+                    if (armorContainer != null) {
+                        for (short i = 0; i < armorContainer.getCapacity(); ++i) {
+                            ItemStack itemStack = armorContainer.getItemStack(i);
+                            if (!ItemStack.isEmpty(itemStack) && itemStack.getItem().dropsOnDeath()) {
+                                int quantityToLose = Math.max(1, MathUtil.floor((double) itemStack.getQuantity() * itemAmountLossRatio));
+                                itemsToDrop.add(itemStack.withQuantity(quantityToLose));
+                                int newQuantity = itemStack.getQuantity() - quantityToLose;
+                                if (newQuantity > 0) {
+                                    armorContainer.replaceItemStackInSlot(i, itemStack, itemStack.withQuantity(newQuantity));
+                                } else {
+                                    armorContainer.removeItemStackFromSlot(i);
+                                }
+                            }
+                        }
+                    }
                 }
                 break;
             case NONE:
@@ -179,7 +196,7 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
             component.setItemsDurabilityLossPercentage(0.0F);
 
             LOGGER.atInfo().log("[CreateBodyOnDeathEvent] Calling BodyManager.spawnBody");
-            BodyManager.spawnBody(store, ref, uuid, itemsToDrop, armorStacks);
+            BodyManager.spawnBody(store, ref, uuid, itemsToDrop, new ItemStack[0], BodySource.DEATH);
         } else {
             component.setItemsLossMode(ItemsLossMode.NONE);
             component.setItemsAmountLossPercentage(0.0F);

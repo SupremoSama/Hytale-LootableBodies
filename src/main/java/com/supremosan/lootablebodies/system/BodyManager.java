@@ -2,8 +2,8 @@ package com.supremosan.lootablebodies.system;
 
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
-import com.hypixel.hytale.function.consumer.TriConsumer;
 import com.hypixel.hytale.logger.HytaleLogger;
+import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.protocol.AnimationSlot;
 import com.hypixel.hytale.server.core.asset.type.model.config.Model;
 import com.hypixel.hytale.server.core.asset.type.model.config.ModelAsset;
@@ -18,26 +18,23 @@ import com.hypixel.hytale.server.core.modules.entity.player.PlayerSkinComponent;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.NPCPlugin;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
+import com.supremosan.lootablebodies.LootableBodies;
 import com.supremosan.lootablebodies.components.BodyComponent;
+import com.supremosan.lootablebodies.components.BodySource;
 import it.unimi.dsi.fastutil.Pair;
-import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class BodyManager {
 
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
     private static final String BODY_ROLE = "Body_Entity_Role";
 
-    private static final Map<UUID, Ref<EntityStore>> bodyRefByPlayer = new ConcurrentHashMap<>();
-
-    public static void spawnBody(Store<EntityStore> store, Ref<EntityStore> ref, UUID uuid, List<ItemStack> stacks, ItemStack[] armor) {
-        LOGGER.atInfo().log("[BodyManager] spawnBody called, stacks=%s", stacks.size());
+    public static void spawnBody(Store<EntityStore> store, Ref<EntityStore> ref, UUID uuid, List<ItemStack> stacks, ItemStack[] armor, BodySource source) {
+        LOGGER.atInfo().log("[BodyManager] spawnBody called, stacks=%s, source=%s", stacks.size(), source);
 
         TransformComponent transformComponent = store.getComponent(ref, TransformComponent.getComponentType());
         if (transformComponent == null) {
@@ -58,16 +55,15 @@ public class BodyManager {
         }
 
         Model newModel = Model.createScaledModel(Objects.requireNonNull(ModelAsset.getAssetMap().getAsset("Player")), 1.0F);
-
-        LOGGER.atInfo().log("[BodyManager] Attempting spawnEntity with role=%s at pos=%s", BODY_ROLE, transformComponent.getPosition());
+        Vector3d position = transformComponent.getPosition();
 
         Pair<Ref<EntityStore>, NPCEntity> pair = NPCPlugin.get().spawnEntity(
                 store,
                 roleIndex,
-                transformComponent.getPosition(),
+                position,
                 transformComponent.getRotation(),
                 newModel,
-                (TriConsumer) null
+                null
         );
 
         if (pair == null) {
@@ -75,15 +71,8 @@ public class BodyManager {
             return;
         }
 
-        LOGGER.atInfo().log("[BodyManager] spawnEntity succeeded, setting up body entity");
-
         Store<EntityStore> newEntityStore = pair.first().getStore();
         Ref<EntityStore> newEntityRef = pair.first();
-
-        if (uuid != null) {
-            bodyRefByPlayer.put(uuid, newEntityRef);
-            LOGGER.atInfo().log("[BodyManager] Registered body ref for player %s", uuid);
-        }
 
         newEntityStore.putComponent(newEntityRef, ModelComponent.getComponentType(), new ModelComponent(newModel));
 
@@ -98,182 +87,219 @@ public class BodyManager {
             storageContainer.setItemStackForSlot(i, merged.get(i));
         }
         newEntityStore.putComponent(newEntityRef, InventoryComponent.Storage.getComponentType(), new InventoryComponent.Storage(storageContainer));
-        LOGGER.atInfo().log("[BodyManager] Storage capacity=%s, slots used=%s", capacity, merged.size());
 
         InventoryComponent.Armor npcArmorComp = newEntityStore.getComponent(newEntityRef, InventoryComponent.Armor.getComponentType());
-        if (npcArmorComp != null) {
+        if (npcArmorComp != null && armor != null) {
             ItemContainer armorEntityInventory = npcArmorComp.getInventory();
             for (int i = 0; i < armor.length && i < armorEntityInventory.getCapacity(); ++i) {
                 if (!ItemStack.isEmpty(armor[i])) {
                     armorEntityInventory.setItemStackForSlot((short) i, armor[i]);
                 }
             }
-        } else {
-            LOGGER.atInfo().log("[BodyManager] NPC has no Armor inventory component");
         }
 
-        newEntityStore.addComponent(newEntityRef, BodyComponent.getComponentType(), new BodyComponent(playerSkinComponent));
-        AnimationUtils.playAnimation(newEntityRef, AnimationSlot.Status, "Sleep", newEntityStore);
+        newEntityStore.addComponent(
+                newEntityRef,
+                BodyComponent.getComponentType(),
+                new BodyComponent(playerSkinComponent, uuid, source)
+        );
 
-        LOGGER.atInfo().log("[BodyManager] Body entity setup complete");
+        String animationId = source == BodySource.DEATH ? "Death" : "Sleep";
+        AnimationUtils.playAnimation(newEntityRef, AnimationSlot.Status, animationId, newEntityStore);
     }
 
-    public static void restoreBodyToPlayer(UUID uuid, Store<EntityStore> playerStore, Ref<EntityStore> playerRef) {
-        Ref<EntityStore> bodyRef = bodyRefByPlayer.get(uuid);
-        if (bodyRef == null) {
-            LOGGER.atInfo().log("[BodyManager] No body ref found for player %s", uuid);
+    public static void syncBodyToPlayer(UUID uuid, Store<EntityStore> playerStore, Ref<EntityStore> playerRef) {
+        if (uuid == null || playerStore == null || playerRef == null) {
+            return;
+        }
+
+        Ref<EntityStore> bodyRef = findBodyRefByPlayer(uuid, BodySource.LOGOUT, playerStore);
+        if (bodyRef == null || !bodyRef.isValid()) {
+            LOGGER.atInfo().log("[BodyManager] syncBodyToPlayer: no LOGOUT body found for %s", uuid);
             return;
         }
 
         Store<EntityStore> bodyStore = bodyRef.getStore();
-        if (bodyStore == null) {
-            LOGGER.atInfo().log("[BodyManager] Body store is null for player %s, cleaning up", uuid);
-            bodyRefByPlayer.remove(uuid);
-            return;
-        }
+
+        List<ItemStack> bodyItems = new ArrayList<>();
 
         InventoryComponent.Storage bodyStorageComp = bodyStore.getComponent(bodyRef, InventoryComponent.Storage.getComponentType());
-        if (bodyStorageComp == null) {
-            LOGGER.atInfo().log("[BodyManager] Body has no storage for player %s", uuid);
-            removeBody(uuid);
-            return;
+        if (bodyStorageComp != null) {
+            ItemContainer bodyInventory = bodyStorageComp.getInventory();
+            for (short i = 0; i < bodyInventory.getCapacity(); ++i) {
+                ItemStack stack = bodyInventory.getItemStack(i);
+                if (!ItemStack.isEmpty(stack)) {
+                    bodyItems.add(stack);
+                }
+            }
         }
 
-        ItemContainer bodyInventory = bodyStorageComp.getInventory();
-        List<ItemStack> remaining = new ObjectArrayList<>();
-        for (short i = 0; i < bodyInventory.getCapacity(); ++i) {
-            ItemStack stack = bodyInventory.getItemStack(i);
-            if (!ItemStack.isEmpty(stack)) remaining.add(stack);
+        InventoryComponent.Armor bodyArmorComp = bodyStore.getComponent(bodyRef, InventoryComponent.Armor.getComponentType());
+        if (bodyArmorComp != null) {
+            ItemContainer bodyArmorInv = bodyArmorComp.getInventory();
+            for (short i = 0; i < bodyArmorInv.getCapacity(); ++i) {
+                ItemStack stack = bodyArmorInv.getItemStack(i);
+                if (!ItemStack.isEmpty(stack)) {
+                    bodyItems.add(stack);
+                }
+            }
         }
 
-        if (remaining.isEmpty()) {
-            LOGGER.atInfo().log("[BodyManager] Body already fully looted for player %s, removing", uuid);
-            removeBody(uuid);
-            return;
-        }
+        LOGGER.atInfo().log("[BodyManager] syncBodyToPlayer: restoring %s items to player %s", bodyItems.size(), uuid);
 
         InventoryComponent.Storage playerStorageComp = playerStore.getComponent(playerRef, InventoryComponent.Storage.getComponentType());
         InventoryComponent.Hotbar playerHotbarComp = playerStore.getComponent(playerRef, InventoryComponent.Hotbar.getComponentType());
         InventoryComponent.Backpack playerBackpackComp = playerStore.getComponent(playerRef, InventoryComponent.Backpack.getComponentType());
+        InventoryComponent.Armor playerArmorComp = playerStore.getComponent(playerRef, InventoryComponent.Armor.getComponentType());
 
         ItemContainer[] playerContainers = new ItemContainer[]{
                 playerStorageComp != null ? playerStorageComp.getInventory() : null,
                 playerHotbarComp != null ? playerHotbarComp.getInventory() : null,
-                playerBackpackComp != null ? playerBackpackComp.getInventory() : null
+                playerBackpackComp != null ? playerBackpackComp.getInventory() : null,
+                playerArmorComp != null ? playerArmorComp.getInventory() : null
         };
 
-        for (ItemStack stack : remaining) {
-            boolean placed = false;
+        for (ItemContainer container : playerContainers) {
+            if (container == null) continue;
+            for (short slot = 0; slot < container.getCapacity(); ++slot) {
+                if (!ItemStack.isEmpty(container.getItemStack(slot))) {
+                    container.removeItemStackFromSlot(slot);
+                }
+            }
+        }
+
+        for (ItemStack incoming : bodyItems) {
+            if (ItemStack.isEmpty(incoming)) continue;
+
+            ItemStack remaining = incoming;
+
+            outer:
             for (ItemContainer container : playerContainers) {
                 if (container == null) continue;
+
                 for (short slot = 0; slot < container.getCapacity(); ++slot) {
+                    if (ItemStack.isEmpty(remaining)) break outer;
+
                     ItemStack existing = container.getItemStack(slot);
+
                     if (ItemStack.isEmpty(existing)) {
-                        container.setItemStackForSlot(slot, stack);
-                        placed = true;
-                        break;
-                    }
-                    if (existing.isStackableWith(stack)) {
-                        int space = existing.getItem().getMaxStack() - existing.getQuantity();
-                        if (space > 0) {
-                            int toAdd = Math.min(space, stack.getQuantity());
-                            container.setItemStackForSlot(slot, existing.withQuantity(existing.getQuantity() + toAdd));
-                            int leftover = stack.getQuantity() - toAdd;
-                            if (leftover > 0) {
-                                stack = stack.withQuantity(leftover);
-                            } else {
-                                placed = true;
-                                break;
-                            }
+                        container.setItemStackForSlot(slot, remaining);
+                        remaining = ItemStack.EMPTY;
+                    } else if (existing.isStackableWith(remaining)) {
+                        int maxStack = existing.getItem().getMaxStack();
+                        int combined = existing.getQuantity() + remaining.getQuantity();
+                        if (combined <= maxStack) {
+                            container.setItemStackForSlot(slot, existing.withQuantity(combined));
+                            remaining = ItemStack.EMPTY;
+                        } else {
+                            int added = maxStack - existing.getQuantity();
+                            container.setItemStackForSlot(slot, existing.withQuantity(maxStack));
+                            remaining = remaining.withQuantity(remaining.getQuantity() - added);
                         }
                     }
                 }
-                if (placed) break;
             }
-            if (!placed) {
-                LOGGER.atInfo().log("[BodyManager] Could not place item %s back into player inventory (full?)", stack);
+
+            if (!ItemStack.isEmpty(remaining)) {
+                LOGGER.atInfo().log("[BodyManager] syncBodyToPlayer: inventory full, could not restore item %s", remaining);
             }
         }
 
-        LOGGER.atInfo().log("[BodyManager] Transferred %s items from body to player %s", remaining.size(), uuid);
-        removeBody(uuid);
+        forceRemoveBody(bodyRef, bodyStore);
     }
 
-    public static void removeBody(UUID uuid) {
-        Ref<EntityStore> bodyRef = bodyRefByPlayer.remove(uuid);
-        if (bodyRef == null) return;
-
-        Store<EntityStore> bodyStore = bodyRef.getStore();
-        if (bodyStore == null) return;
+    public static void forceRemoveBody(Ref<EntityStore> bodyRef, Store<EntityStore> bodyStore) {
+        if (bodyRef == null || bodyStore == null || !bodyRef.isValid()) {
+            return;
+        }
 
         NPCEntity npcEntity = bodyStore.getComponent(bodyRef, Objects.requireNonNull(NPCEntity.getComponentType()));
-        if (npcEntity != null) {
-            npcEntity.remove();
-            LOGGER.atInfo().log("[BodyManager] Removed body NPC for player %s", uuid);
+        if (npcEntity == null) {
+            return;
         }
+
+        npcEntity.remove();
     }
 
-    public static boolean hasBody(UUID uuid) {
-        return bodyRefByPlayer.containsKey(uuid);
+    public static boolean hasBody(UUID uuid, Store<EntityStore> store) {
+        return findBodyRefByPlayer(uuid, null, store) != null;
+    }
+
+    private static Ref<EntityStore> findBodyRefByPlayer(UUID uuid, BodySource requiredSource, Store<EntityStore> store) {
+        if (uuid == null || store == null) {
+            return null;
+        }
+
+        final Ref<EntityStore>[] found = new Ref[1];
+        store.forEachChunk(LootableBodies.bodyComponentType, (archetypeChunk, commandBuffer) -> {
+            if (found[0] != null) {
+                return;
+            }
+
+            for (int index = 0; index < archetypeChunk.size(); ++index) {
+                BodyComponent bodyComponent = archetypeChunk.getComponent(index, LootableBodies.bodyComponentType);
+                if (bodyComponent == null) {
+                    continue;
+                }
+
+                if (bodyComponent.ownerUuidSerialized.isEmpty()) {
+                    continue;
+                }
+
+                if (!uuid.toString().equals(bodyComponent.ownerUuidSerialized)) {
+                    continue;
+                }
+
+                if (requiredSource != null && bodyComponent.bodySource != requiredSource) {
+                    continue;
+                }
+
+                found[0] = archetypeChunk.getReferenceTo(index);
+                return;
+            }
+        });
+
+        return found[0];
     }
 
     private static List<ItemStack> mergeStacks(List<ItemStack> stacks) {
         List<ItemStack> merged = new ArrayList<>();
+
         for (ItemStack incoming : stacks) {
-            if (ItemStack.isEmpty(incoming)) continue;
-            boolean fullyMerged = false;
+            if (incoming == null || ItemStack.isEmpty(incoming)) {
+                continue;
+            }
+
+            boolean mergedIntoExisting = false;
+
             for (int i = 0; i < merged.size(); i++) {
                 ItemStack existing = merged.get(i);
-                if (!existing.isStackableWith(incoming)) continue;
-                int maxStack = existing.getItem().getMaxStack();
-                if (existing.getQuantity() >= maxStack) continue;
-                int total = existing.getQuantity() + incoming.getQuantity();
-                if (total <= maxStack) {
-                    merged.set(i, existing.withQuantity(total));
-                    fullyMerged = true;
+
+                if (!existing.isStackableWith(incoming)) {
+                    continue;
+                }
+
+                int maxStackSize = existing.getItem().getMaxStack();
+                int combined = existing.getQuantity() + incoming.getQuantity();
+
+                if (combined <= maxStackSize) {
+                    merged.set(i, existing.withQuantity(combined));
+                    mergedIntoExisting = true;
                     break;
-                } else {
-                    merged.set(i, existing.withQuantity(maxStack));
-                    incoming = incoming.withQuantity(total - maxStack);
+                }
+
+                if (existing.getQuantity() < maxStackSize) {
+                    int amountToFill = maxStackSize - existing.getQuantity();
+                    merged.set(i, existing.withQuantity(maxStackSize));
+                    incoming = incoming.withQuantity(incoming.getQuantity() - amountToFill);
                 }
             }
-            if (!fullyMerged) {
+
+            if (!mergedIntoExisting) {
                 merged.add(incoming);
             }
         }
+
         return merged;
-    }
-
-    public static void spawnBody(Store<EntityStore> store, Ref<EntityStore> ref) {
-        InventoryComponent.Armor armorComp = store.getComponent(ref, InventoryComponent.Armor.getComponentType());
-        InventoryComponent.Storage storageComp = store.getComponent(ref, InventoryComponent.Storage.getComponentType());
-        InventoryComponent.Hotbar hotbarComp = store.getComponent(ref, InventoryComponent.Hotbar.getComponentType());
-        InventoryComponent.Backpack backpackComp = store.getComponent(ref, InventoryComponent.Backpack.getComponentType());
-
-        List<ItemStack> stacks = new ObjectArrayList<>();
-
-        ItemContainer[] containers = new ItemContainer[]{
-                storageComp != null ? storageComp.getInventory() : null,
-                hotbarComp != null ? hotbarComp.getInventory() : null,
-                backpackComp != null ? backpackComp.getInventory() : null
-        };
-
-        for (ItemContainer container : containers) {
-            if (container == null) continue;
-            for (short i = 0; i < container.getCapacity(); ++i) {
-                ItemStack stack = container.getItemStack(i);
-                if (stack != null) stacks.add(stack);
-            }
-        }
-
-        ItemContainer armorInventory = armorComp != null ? armorComp.getInventory() : null;
-        ItemStack[] armorStacks = new ItemStack[armorInventory != null ? armorInventory.getCapacity() : 0];
-        if (armorInventory != null) {
-            for (short i = 0; i < armorStacks.length; ++i) {
-                armorStacks[i] = armorInventory.getItemStack(i);
-            }
-        }
-
-        spawnBody(store, ref, null, stacks, armorStacks);
     }
 }

@@ -5,8 +5,9 @@ import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.asset.type.model.config.Model;
-import com.hypixel.hytale.server.core.event.events.player.PlayerConnectEvent;
+import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.event.events.player.PlayerDisconnectEvent;
+import com.hypixel.hytale.server.core.event.events.player.PlayerReadyEvent;
 import com.hypixel.hytale.server.core.inventory.InventoryComponent;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.inventory.container.ItemContainer;
@@ -19,6 +20,7 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.NPCPlugin;
 import com.supremosan.lootablebodies.actions.OpenBodyAction;
 import com.supremosan.lootablebodies.components.BodyComponent;
+import com.supremosan.lootablebodies.components.BodySource;
 import com.supremosan.lootablebodies.events.CreateBodyOnDeathEvent;
 import com.supremosan.lootablebodies.system.BodyManager;
 import com.supremosan.lootablebodies.system.BodySkinReapplySystem;
@@ -68,7 +70,7 @@ public class LootableBodies extends JavaPlugin {
             if (ref == null) return;
 
             Store<EntityStore> store = ref.getStore();
-            World world = ((EntityStore) store.getExternalData()).getWorld();
+            World world = store.getExternalData().getWorld();
             world.execute(() -> {
                 InventoryComponent.Armor armorComp = store.getComponent(ref, InventoryComponent.Armor.getComponentType());
                 InventoryComponent.Storage storageComp = store.getComponent(ref, InventoryComponent.Storage.getComponentType());
@@ -79,6 +81,7 @@ public class LootableBodies extends JavaPlugin {
                 if (transform == null) return;
 
                 List<ItemStack> stacks = new ObjectArrayList<>();
+
                 ItemContainer[] containers = new ItemContainer[]{
                         storageComp != null ? storageComp.getInventory() : null,
                         hotbarComp != null ? hotbarComp.getInventory() : null,
@@ -93,37 +96,40 @@ public class LootableBodies extends JavaPlugin {
                 }
 
                 ItemContainer armorInventory = armorComp != null ? armorComp.getInventory() : null;
-                ItemStack[] armorStacks = new ItemStack[armorInventory != null ? armorInventory.getCapacity() : 0];
                 if (armorInventory != null) {
-                    for (short i = 0; i < armorStacks.length; ++i) {
-                        armorStacks[i] = armorInventory.getItemStack(i);
+                    for (short i = 0; i < armorInventory.getCapacity(); ++i) {
+                        ItemStack stack = armorInventory.getItemStack(i);
+                        if (!ItemStack.isEmpty(stack)) stacks.add(stack);
                     }
                 }
 
                 if (stacks.isEmpty()) return;
 
-                LOGGER.atInfo().log("[LootableBodies] Saved body for %s with %s items", uuid, stacks.size());
-                BodyManager.spawnBody(store, ref, uuid, stacks, armorStacks);
+                LOGGER.atInfo().log("[LootableBodies] Saving body for %s with %s items", uuid, stacks.size());
+
+                BodyManager.spawnBody(store, ref, uuid, stacks, new ItemStack[0], BodySource.LOGOUT);
             });
         });
 
-        this.getEventRegistry().registerGlobal(PlayerConnectEvent.class, event -> {
-            PlayerRef playerRef = event.getPlayerRef();
-            UUID uuid = playerRef.getUuid();
+        this.getEventRegistry().registerGlobal(PlayerReadyEvent.class, event -> {
+            Player player = event.getPlayer();
 
-            Ref<EntityStore> ref = playerRef.getReference();
+            Ref<EntityStore> ref = player.getReference();
             if (ref == null) return;
 
             Store<EntityStore> store = ref.getStore();
-            if (!BodyManager.hasBody(uuid)) {
-                LOGGER.atInfo().log("[LootableBodies] No active body for %s", uuid);
-                return;
-            }
 
-            World world = ((EntityStore) store.getExternalData()).getWorld();
+            PlayerRef playerRef = store.getComponent(ref, PlayerRef.getComponentType());
+            if (playerRef == null) return;
+
+            UUID uuid = playerRef.getUuid();
+            if (!BodyManager.hasBody(uuid, store)) return;
+
+            World world = player.getWorld();
+            if (world == null) return;
             world.execute(() -> {
-                LOGGER.atInfo().log("[LootableBodies] Found active body for %s, restoring items", uuid);
-                BodyManager.restoreBodyToPlayer(uuid, store, ref);
+                LOGGER.atInfo().log("[LootableBodies] PlayerReadyEvent: syncing body to player %s", uuid);
+                BodyManager.syncBodyToPlayer(uuid, store, ref);
             });
         });
 
