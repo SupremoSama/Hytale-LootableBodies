@@ -27,7 +27,6 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.supremosan.lootablebodies.components.BodySource;
 import com.supremosan.lootablebodies.system.BodyManager;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
-import org.jspecify.annotations.NonNull;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -40,7 +39,7 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
 
     @Override
-    public @NonNull Set<Dependency<EntityStore>> getDependencies() {
+    public @Nonnull Set<Dependency<EntityStore>> getDependencies() {
         return Set.of(
                 new SystemDependency<>(Order.AFTER, DeathSystems.PlayerDropItemsConfig.class),
                 new SystemDependency<>(Order.BEFORE, DeathSystems.DropPlayerDeathItems.class)
@@ -54,6 +53,7 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
             LOGGER.atInfo().log("[CreateBodyOnDeathEvent] Not a player, skipping");
             return;
         }
+
         PlayerRef playerRef = store.getComponent(ref, PlayerRef.getComponentType());
         if (playerRef == null) {
             LOGGER.atInfo().log("[CreateBodyOnDeathEvent] player ref not found, skipping");
@@ -68,139 +68,113 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
         UUID uuid = playerRef.getUuid();
         World world = store.getExternalData().getWorld();
         DeathConfig deathConfig = world.getDeathConfig();
+
         LOGGER.atInfo().log("[CreateBodyOnDeathEvent] ItemsLossMode=%s", deathConfig.getItemsLossMode());
-        if (deathConfig.getItemsLossMode() == DeathConfig.ItemsLossMode.NONE) return;
+
+        if (deathConfig.getItemsLossMode() == ItemsLossMode.NONE) {
+            return;
+        }
 
         TransformComponent transform = store.getComponent(ref, TransformComponent.getComponentType());
-        if (transform == null) return;
+        if (transform == null) {
+            return;
+        }
 
         InventoryComponent.Armor armorComp = store.getComponent(ref, InventoryComponent.Armor.getComponentType());
         InventoryComponent.Storage storageComp = store.getComponent(ref, InventoryComponent.Storage.getComponentType());
         InventoryComponent.Hotbar hotbarComp = store.getComponent(ref, InventoryComponent.Hotbar.getComponentType());
         InventoryComponent.Backpack backpackComp = store.getComponent(ref, InventoryComponent.Backpack.getComponentType());
 
+        ItemContainer armorContainer = armorComp != null ? armorComp.getInventory() : null;
+        ItemContainer storageContainer = storageComp != null ? storageComp.getInventory() : null;
+        ItemContainer hotbarContainer = hotbarComp != null ? hotbarComp.getInventory() : null;
+        ItemContainer backpackContainer = backpackComp != null ? backpackComp.getInventory() : null;
+
         component.setDisplayDataOnDeathScreen(true);
 
-        ItemContainer[] nonArmorContainers = new ItemContainer[]{
-                storageComp != null ? storageComp.getInventory() : null,
-                hotbarComp != null ? hotbarComp.getInventory() : null,
-                backpackComp != null ? backpackComp.getInventory() : null
-        };
+        ItemStack[] storageItems = createEmptySnapshot(storageContainer);
+        ItemStack[] hotbarItems = createEmptySnapshot(hotbarContainer);
+        ItemStack[] backpackItems = createEmptySnapshot(backpackContainer);
+        ItemStack[] armorItems = createEmptySnapshot(armorContainer);
 
-        ItemContainer armorContainer = armorComp != null ? armorComp.getInventory() : null;
-        ItemContainer[] allContainers = listContainers(armorComp, storageComp, hotbarComp, backpackComp);
-
-        if (deathConfig.getItemsDurabilityLossPercentage() > (double) 0.0F) {
-            double durabilityLossRatio = deathConfig.getItemsDurabilityLossPercentage() / (double) 100.0F;
-            boolean hasArmorBroken = false;
-
-            for (ItemContainer itemContainer : allContainers) {
-                if (itemContainer == null) continue;
-                for (short i = 0; i < itemContainer.getCapacity(); ++i) {
-                    ItemStack itemStack = itemContainer.getItemStack(i);
-                    if (!ItemStack.isEmpty(itemStack) && !itemStack.isBroken()) {
-                        double durabilityLoss = itemStack.getMaxDurability() * durabilityLossRatio;
-                        ItemStack updatedItemStack = itemStack.withIncreasedDurability(-durabilityLoss);
-                        ItemStackSlotTransaction transaction = itemContainer.replaceItemStackInSlot(i, itemStack, updatedItemStack);
-                        if (transaction.getSlotAfter() == null) continue;
-                        if (transaction.getSlotAfter().isBroken() && itemStack.getItem().getArmor() != null) {
-                            hasArmorBroken = true;
-                        }
-                    }
-                }
-            }
-
-            if (hasArmorBroken) {
-                EntityStatMap statMap = store.getComponent(ref, EntityStatMap.getComponentType());
-                if (statMap != null) {
-                    statMap.getStatModifiersManager().scheduleRecalculate();
-                }
-            }
-        }
-
-        List<ItemStack> itemsToDrop = null;
+        List<ItemStack> itemsToDrop = new ObjectArrayList<>();
 
         switch (deathConfig.getItemsLossMode()) {
-            case ALL:
-                itemsToDrop = new ObjectArrayList<>();
-                for (ItemContainer itemContainer : nonArmorContainers) {
-                    if (itemContainer == null) continue;
-                    for (short i = 0; i < itemContainer.getCapacity(); ++i) {
-                        ItemStack stack = itemContainer.getItemStack(i);
-                        if (!ItemStack.isEmpty(stack)) {
-                            itemsToDrop.add(stack);
-                            itemContainer.removeItemStackFromSlot(i);
-                        }
-                    }
-                }
-                if (armorContainer != null) {
-                    for (short i = 0; i < armorContainer.getCapacity(); ++i) {
-                        ItemStack stack = armorContainer.getItemStack(i);
-                        if (!ItemStack.isEmpty(stack)) {
-                            itemsToDrop.add(stack);
-                            armorContainer.removeItemStackFromSlot(i);
-                        }
-                    }
-                }
+            case ALL: {
+                collectAllLostItems(storageContainer, storageItems, itemsToDrop);
+                collectAllLostItems(hotbarContainer, hotbarItems, itemsToDrop);
+                collectAllLostItems(backpackContainer, backpackItems, itemsToDrop);
+                collectAllLostItems(armorContainer, armorItems, itemsToDrop);
                 break;
-            case CONFIGURED:
-                double itemsAmountLossPercentage = deathConfig.getItemsAmountLossPercentage();
-                if (itemsAmountLossPercentage > (double) 0.0F) {
-                    double itemAmountLossRatio = itemsAmountLossPercentage / (double) 100.0F;
-                    itemsToDrop = new ObjectArrayList<>();
+            }
 
-                    for (ItemContainer itemContainer : nonArmorContainers) {
+            case CONFIGURED: {
+                ItemContainer[] allContainers = new ItemContainer[]{
+                        armorContainer,
+                        storageContainer,
+                        hotbarContainer,
+                        backpackContainer
+                };
+
+                if (deathConfig.getItemsDurabilityLossPercentage() > 0.0D) {
+                    double durabilityLossRatio = deathConfig.getItemsDurabilityLossPercentage() / 100.0D;
+                    boolean hasArmorBroken = false;
+
+                    for (ItemContainer itemContainer : allContainers) {
                         if (itemContainer == null) continue;
+
                         for (short i = 0; i < itemContainer.getCapacity(); ++i) {
                             ItemStack itemStack = itemContainer.getItemStack(i);
-                            if (!ItemStack.isEmpty(itemStack) && itemStack.getItem().dropsOnDeath()) {
-                                int quantityToLose = Math.max(1, MathUtil.floor((double) itemStack.getQuantity() * itemAmountLossRatio));
-                                itemsToDrop.add(itemStack.withQuantity(quantityToLose));
-                                int newQuantity = itemStack.getQuantity() - quantityToLose;
-                                if (newQuantity > 0) {
-                                    itemContainer.replaceItemStackInSlot(i, itemStack, itemStack.withQuantity(newQuantity));
-                                } else {
-                                    itemContainer.removeItemStackFromSlot(i);
-                                }
+                            if (ItemStack.isEmpty(itemStack) || itemStack.isBroken()) continue;
+
+                            if (!itemStack.getItem().getDurabilityLossOnDeath()) continue;
+
+                            double durabilityLoss = itemStack.getMaxDurability() * durabilityLossRatio;
+                            ItemStack updatedItemStack = itemStack.withIncreasedDurability(-durabilityLoss);
+                            ItemStackSlotTransaction transaction = itemContainer.replaceItemStackInSlot(i, itemStack, updatedItemStack);
+
+                            if (transaction.getSlotAfter() == null) continue;
+
+                            if (transaction.getSlotAfter().isBroken() && itemStack.getItem().getArmor() != null) {
+                                hasArmorBroken = true;
                             }
                         }
                     }
 
-                    if (armorContainer != null) {
-                        for (short i = 0; i < armorContainer.getCapacity(); ++i) {
-                            ItemStack itemStack = armorContainer.getItemStack(i);
-                            if (!ItemStack.isEmpty(itemStack) && itemStack.getItem().dropsOnDeath()) {
-                                int quantityToLose = Math.max(1, MathUtil.floor((double) itemStack.getQuantity() * itemAmountLossRatio));
-                                itemsToDrop.add(itemStack.withQuantity(quantityToLose));
-                                int newQuantity = itemStack.getQuantity() - quantityToLose;
-                                if (newQuantity > 0) {
-                                    armorContainer.replaceItemStackInSlot(i, itemStack, itemStack.withQuantity(newQuantity));
-                                } else {
-                                    armorContainer.removeItemStackFromSlot(i);
-                                }
-                            }
+                    if (hasArmorBroken) {
+                        EntityStatMap statMap = store.getComponent(ref, EntityStatMap.getComponentType());
+                        if (statMap != null) {
+                            statMap.getStatModifiersManager().scheduleRecalculate();
                         }
                     }
                 }
+
+                double itemsAmountLossPercentage = deathConfig.getItemsAmountLossPercentage();
+                if (itemsAmountLossPercentage > 0.0D) {
+                    double itemAmountLossRatio = itemsAmountLossPercentage / 100.0D;
+                    collectConfiguredLostItems(storageContainer, storageItems, itemsToDrop, itemAmountLossRatio);
+                    collectConfiguredLostItems(hotbarContainer, hotbarItems, itemsToDrop, itemAmountLossRatio);
+                    collectConfiguredLostItems(backpackContainer, backpackItems, itemsToDrop, itemAmountLossRatio);
+                    collectConfiguredLostItems(armorContainer, armorItems, itemsToDrop, itemAmountLossRatio);
+                }
                 break;
+            }
+
             case NONE:
                 break;
         }
 
-        LOGGER.atInfo().log("[CreateBodyOnDeathEvent] itemsToDrop=%s", itemsToDrop == null ? "null" : itemsToDrop.size());
+        LOGGER.atInfo().log("[CreateBodyOnDeathEvent] itemsToDrop=%s", itemsToDrop.size());
 
-        if (itemsToDrop != null && !itemsToDrop.isEmpty()) {
+        component.setItemsLossMode(ItemsLossMode.NONE);
+        component.setItemsAmountLossPercentage(0.0D);
+        component.setItemsDurabilityLossPercentage(0.0D);
+
+        if (!itemsToDrop.isEmpty()) {
             component.setItemsLostOnDeath(itemsToDrop);
-            component.setItemsLossMode(ItemsLossMode.NONE);
-            component.setItemsAmountLossPercentage(0.0F);
-            component.setItemsDurabilityLossPercentage(0.0F);
 
-            LOGGER.atInfo().log("[CreateBodyOnDeathEvent] Calling BodyManager.spawnBody");
-            BodyManager.spawnBody(store, ref, uuid, itemsToDrop, new ItemStack[0], BodySource.DEATH);
-        } else {
-            component.setItemsLossMode(ItemsLossMode.NONE);
-            component.setItemsAmountLossPercentage(0.0F);
-            component.setItemsDurabilityLossPercentage(0.0F);
+            LOGGER.atInfo().log("[CreateBodyOnDeathEvent] Scheduling BodyManager.spawnBody via world.execute");
+            world.execute(() -> BodyManager.spawnBody(store, ref, uuid, storageItems, hotbarItems, backpackItems, armorItems, BodySource.DEATH));
         }
     }
 
@@ -210,17 +184,45 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
     }
 
     @Nonnull
-    private ItemContainer[] listContainers(
-            @Nullable InventoryComponent.Armor armorComp,
-            @Nullable InventoryComponent.Storage storageComp,
-            @Nullable InventoryComponent.Hotbar hotbarComp,
-            @Nullable InventoryComponent.Backpack backpackComp) {
+    private ItemStack[] createEmptySnapshot(@Nullable ItemContainer container) {
+        if (container == null) {
+            return new ItemStack[0];
+        }
+        return new ItemStack[container.getCapacity()];
+    }
 
-        return new ItemContainer[]{
-                armorComp != null ? armorComp.getInventory() : null,
-                storageComp != null ? storageComp.getInventory() : null,
-                hotbarComp != null ? hotbarComp.getInventory() : null,
-                backpackComp != null ? backpackComp.getInventory() : null
-        };
+    private void collectAllLostItems(@Nullable ItemContainer container, @Nonnull ItemStack[] bodyItems, @Nonnull List<ItemStack> itemsToDrop) {
+        if (container == null) return;
+
+        for (short i = 0; i < container.getCapacity(); ++i) {
+            ItemStack stack = container.getItemStack(i);
+            if (ItemStack.isEmpty(stack)) continue;
+
+            bodyItems[i] = stack;
+            itemsToDrop.add(stack);
+            container.removeItemStackFromSlot(i);
+        }
+    }
+
+    private void collectConfiguredLostItems(@Nullable ItemContainer container, @Nonnull ItemStack[] bodyItems, @Nonnull List<ItemStack> itemsToDrop, double itemAmountLossRatio) {
+        if (container == null) return;
+
+        for (short i = 0; i < container.getCapacity(); ++i) {
+            ItemStack itemStack = container.getItemStack(i);
+            if (ItemStack.isEmpty(itemStack) || !itemStack.getItem().dropsOnDeath()) continue;
+
+            int quantityToLose = Math.max(1, MathUtil.floor((double) itemStack.getQuantity() * itemAmountLossRatio));
+            ItemStack lostStack = itemStack.withQuantity(quantityToLose);
+
+            bodyItems[i] = lostStack;
+            itemsToDrop.add(lostStack);
+
+            int newQuantity = itemStack.getQuantity() - quantityToLose;
+            if (newQuantity > 0) {
+                container.replaceItemStackInSlot(i, itemStack, itemStack.withQuantity(newQuantity));
+            } else {
+                container.removeItemStackFromSlot(i);
+            }
+        }
     }
 }

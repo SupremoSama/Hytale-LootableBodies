@@ -3,9 +3,11 @@ package com.supremosan.lootablebodies.components;
 import com.hypixel.hytale.codec.Codec;
 import com.hypixel.hytale.codec.KeyedCodec;
 import com.hypixel.hytale.codec.builder.BuilderCodec;
+import com.hypixel.hytale.codec.codecs.array.ArrayCodec;
 import com.hypixel.hytale.component.Component;
 import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.protocol.PlayerSkin;
+import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.modules.entity.player.PlayerSkinComponent;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.supremosan.lootablebodies.LootableBodies;
@@ -15,11 +17,12 @@ import javax.annotation.Nullable;
 import java.util.UUID;
 
 public class BodyComponent implements Component<EntityStore> {
+
     @Nonnull
     public static final BuilderCodec<BodyComponent> CODEC;
 
     @Nonnull
-    String playerSkinSerialized;
+    public String playerSkinSerialized;
 
     @Nonnull
     public String ownerUuidSerialized;
@@ -27,27 +30,64 @@ public class BodyComponent implements Component<EntityStore> {
     @Nonnull
     public BodySource bodySource;
 
-    public BodyComponent(PlayerSkinComponent toCopyFrom, UUID ownerUuid, BodySource bodySource) {
-        this.playerSkinSerialized = this.stringifyPlayerSkin(toCopyFrom.getPlayerSkin());
+    @Nonnull
+    private ItemStack[] storageItems;
+
+    @Nonnull
+    private ItemStack[] hotbarItems;
+
+    @Nonnull
+    private ItemStack[] backpackItems;
+
+    @Nonnull
+    private ItemStack[] armorItems;
+
+    public BodyComponent(
+            PlayerSkinComponent toCopyFrom,
+            UUID ownerUuid,
+            BodySource bodySource,
+            ItemStack[] storageItems,
+            ItemStack[] hotbarItems,
+            ItemStack[] backpackItems,
+            ItemStack[] armorItems
+    ) {
+        this.playerSkinSerialized = stringifyPlayerSkin(toCopyFrom.getPlayerSkin());
         this.ownerUuidSerialized = ownerUuid != null ? ownerUuid.toString() : "";
         this.bodySource = bodySource != null ? bodySource : BodySource.DEATH;
+        this.storageItems = storageItems != null ? storageItems : new ItemStack[0];
+        this.hotbarItems = hotbarItems != null ? hotbarItems : new ItemStack[0];
+        this.backpackItems = backpackItems != null ? backpackItems : new ItemStack[0];
+        this.armorItems = armorItems != null ? armorItems : new ItemStack[0];
     }
 
-    public BodyComponent(String playerSkinSerialized, String ownerUuidSerialized, String bodySourceSerialized) {
-        this.playerSkinSerialized = playerSkinSerialized != null ? playerSkinSerialized : "";
-        this.ownerUuidSerialized = ownerUuidSerialized != null ? ownerUuidSerialized : "";
+    public BodyComponent(@Nonnull String playerSkinSerialized, @Nonnull String ownerUuidSerialized, @Nonnull String bodySourceSerialized) {
+        this.playerSkinSerialized = playerSkinSerialized;
+        this.ownerUuidSerialized = ownerUuidSerialized;
         this.bodySource = parseBodySource(bodySourceSerialized);
+        this.storageItems = new ItemStack[0];
+        this.hotbarItems = new ItemStack[0];
+        this.backpackItems = new ItemStack[0];
+        this.armorItems = new ItemStack[0];
     }
 
     public BodyComponent() {
         this.playerSkinSerialized = "";
         this.ownerUuidSerialized = "";
         this.bodySource = BodySource.DEATH;
+        this.storageItems = new ItemStack[0];
+        this.hotbarItems = new ItemStack[0];
+        this.backpackItems = new ItemStack[0];
+        this.armorItems = new ItemStack[0];
     }
 
     public static ComponentType<EntityStore, BodyComponent> getComponentType() {
         return LootableBodies.bodyComponentType;
     }
+
+    public ItemStack[] getStorageItems() { return storageItems; }
+    public ItemStack[] getHotbarItems() { return hotbarItems; }
+    public ItemStack[] getBackpackItems() { return backpackItems; }
+    public ItemStack[] getArmorItems() { return armorItems; }
 
     public String toString() {
         return this.playerSkinSerialized;
@@ -62,45 +102,12 @@ public class BodyComponent implements Component<EntityStore> {
         }
     }
 
-    private String stringifyPlayerSkin(PlayerSkin skin) {
-        return skin.bodyCharacteristic +
-                ";" +
-                skin.ears +
-                ";" +
-                skin.skinFeature +
-                ";" +
-                skin.eyes +
-                ";" +
-                skin.eyebrows +
-                ";" +
-                skin.gloves +
-                ";" +
-                skin.overpants +
-                ";" +
-                skin.pants +
-                ";" +
-                skin.shoes +
-                ";" +
-                skin.cape +
-                ";" +
-                skin.earAccessory +
-                ";" +
-                skin.face +
-                ";" +
-                skin.faceAccessory +
-                ";" +
-                skin.facialHair +
-                ";" +
-                skin.haircut +
-                ";" +
-                skin.headAccessory +
-                ";" +
-                skin.mouth +
-                ";" +
-                skin.overtop +
-                ";" +
-                skin.undertop +
-                ";" +
+    private static String stringifyPlayerSkin(PlayerSkin skin) {
+        return skin.bodyCharacteristic + ";" + skin.ears + ";" + skin.skinFeature + ";" +
+                skin.eyes + ";" + skin.eyebrows + ";" + skin.gloves + ";" + skin.overpants + ";" +
+                skin.pants + ";" + skin.shoes + ";" + skin.cape + ";" + skin.earAccessory + ";" +
+                skin.face + ";" + skin.faceAccessory + ";" + skin.facialHair + ";" + skin.haircut + ";" +
+                skin.headAccessory + ";" + skin.mouth + ";" + skin.overtop + ";" + skin.undertop + ";" +
                 skin.underwear;
     }
 
@@ -132,34 +139,66 @@ public class BodyComponent implements Component<EntityStore> {
 
     @Nullable
     public Component<EntityStore> clone() {
-        return new BodyComponent(this.playerSkinSerialized, this.ownerUuidSerialized, this.bodySource.name());
+        BodyComponent copy = new BodyComponent(playerSkinSerialized, ownerUuidSerialized, bodySource.name());
+        copy.storageItems = this.storageItems;
+        copy.hotbarItems = this.hotbarItems;
+        copy.backpackItems = this.backpackItems;
+        copy.armorItems = this.armorItems;
+        return copy;
     }
 
     static {
+        ArrayCodec<ItemStack> itemArrayCodec = new ArrayCodec<>(ItemStack.CODEC, ItemStack[]::new);
+
         CODEC = BuilderCodec.builder(BodyComponent.class, BodyComponent::new)
-                .appendInherited(
+                .append(
                         new KeyedCodec<>("PlayerSkinSerialized", Codec.STRING),
                         (e, s) -> e.playerSkinSerialized = s,
-                        e -> e.playerSkinSerialized,
-                        (e, p) -> e.playerSkinSerialized = p.playerSkinSerialized
+                        e -> e.playerSkinSerialized
                 )
                 .documentation("Serialized version of the PlayerSkin")
                 .add()
-                .appendInherited(
+                .append(
                         new KeyedCodec<>("OwnerUuidSerialized", Codec.STRING),
                         (e, s) -> e.ownerUuidSerialized = s,
-                        e -> e.ownerUuidSerialized,
-                        (e, p) -> e.ownerUuidSerialized = p.ownerUuidSerialized
+                        e -> e.ownerUuidSerialized
                 )
                 .documentation("Serialized owner UUID for body lookup")
                 .add()
-                .appendInherited(
+                .append(
                         new KeyedCodec<>("BodySourceSerialized", Codec.STRING),
                         (e, s) -> e.bodySource = parseBodySource(s),
-                        e -> e.bodySource.name(),
-                        (e, p) -> e.bodySource = p.bodySource
+                        e -> e.bodySource.name()
                 )
                 .documentation("Source of the body: DEATH or LOGOUT")
+                .add()
+                .append(
+                        new KeyedCodec<>("StorageItems", itemArrayCodec),
+                        (e, v) -> e.storageItems = v != null ? v : new ItemStack[0],
+                        e -> e.storageItems
+                )
+                .documentation("Snapshot of the player storage inventory at body creation")
+                .add()
+                .append(
+                        new KeyedCodec<>("HotbarItems", itemArrayCodec),
+                        (e, v) -> e.hotbarItems = v != null ? v : new ItemStack[0],
+                        e -> e.hotbarItems
+                )
+                .documentation("Snapshot of the player hotbar inventory at body creation")
+                .add()
+                .append(
+                        new KeyedCodec<>("BackpackItems", itemArrayCodec),
+                        (e, v) -> e.backpackItems = v != null ? v : new ItemStack[0],
+                        e -> e.backpackItems
+                )
+                .documentation("Snapshot of the player backpack inventory at body creation")
+                .add()
+                .append(
+                        new KeyedCodec<>("ArmorItems", itemArrayCodec),
+                        (e, v) -> e.armorItems = v != null ? v : new ItemStack[0],
+                        e -> e.armorItems
+                )
+                .documentation("Snapshot of the player armor inventory at body creation")
                 .add()
                 .build();
     }

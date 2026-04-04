@@ -24,10 +24,8 @@ import com.supremosan.lootablebodies.components.BodySource;
 import com.supremosan.lootablebodies.events.CreateBodyOnDeathEvent;
 import com.supremosan.lootablebodies.system.BodyManager;
 import com.supremosan.lootablebodies.system.BodySkinReapplySystem;
-import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 
 import java.lang.reflect.Field;
-import java.util.List;
 import java.util.UUID;
 
 public class LootableBodies extends JavaPlugin {
@@ -80,45 +78,26 @@ public class LootableBodies extends JavaPlugin {
 
                 if (transform == null) return;
 
-                List<ItemStack> stacks = new ObjectArrayList<>();
+                ItemStack[] storageItems = snapshotContainer(storageComp != null ? storageComp.getInventory() : null);
+                ItemStack[] hotbarItems = snapshotContainer(hotbarComp != null ? hotbarComp.getInventory() : null);
+                ItemStack[] backpackItems = snapshotContainer(backpackComp != null ? backpackComp.getInventory() : null);
+                ItemStack[] armorItems = snapshotContainer(armorComp != null ? armorComp.getInventory() : null);
 
-                ItemContainer[] containers = new ItemContainer[]{
-                        storageComp != null ? storageComp.getInventory() : null,
-                        hotbarComp != null ? hotbarComp.getInventory() : null,
-                        backpackComp != null ? backpackComp.getInventory() : null
-                };
-                for (ItemContainer container : containers) {
-                    if (container == null) continue;
-                    for (short i = 0; i < container.getCapacity(); ++i) {
-                        ItemStack stack = container.getItemStack(i);
-                        if (!ItemStack.isEmpty(stack)) stacks.add(stack);
-                    }
-                }
+                boolean hasAny = hasItems(storageItems) || hasItems(hotbarItems) || hasItems(backpackItems) || hasItems(armorItems);
+                if (!hasAny) return;
 
-                ItemContainer armorInventory = armorComp != null ? armorComp.getInventory() : null;
-                if (armorInventory != null) {
-                    for (short i = 0; i < armorInventory.getCapacity(); ++i) {
-                        ItemStack stack = armorInventory.getItemStack(i);
-                        if (!ItemStack.isEmpty(stack)) stacks.add(stack);
-                    }
-                }
+                LOGGER.atInfo().log("[LootableBodies] Saving body for %s", uuid);
 
-                if (stacks.isEmpty()) return;
-
-                LOGGER.atInfo().log("[LootableBodies] Saving body for %s with %s items", uuid, stacks.size());
-
-                BodyManager.spawnBody(store, ref, uuid, stacks, new ItemStack[0], BodySource.LOGOUT);
+                BodyManager.spawnBody(store, ref, uuid, storageItems, hotbarItems, backpackItems, armorItems, BodySource.LOGOUT);
             });
         });
 
         this.getEventRegistry().registerGlobal(PlayerReadyEvent.class, event -> {
             Player player = event.getPlayer();
-
             Ref<EntityStore> ref = player.getReference();
             if (ref == null) return;
 
             Store<EntityStore> store = ref.getStore();
-
             PlayerRef playerRef = store.getComponent(ref, PlayerRef.getComponentType());
             if (playerRef == null) return;
 
@@ -127,6 +106,8 @@ public class LootableBodies extends JavaPlugin {
 
             World world = player.getWorld();
             if (world == null) return;
+
+            if (!world.isAlive()) return;
             world.execute(() -> {
                 LOGGER.atInfo().log("[LootableBodies] PlayerReadyEvent: syncing body to player %s", uuid);
                 BodyManager.syncBodyToPlayer(uuid, store, ref);
@@ -139,5 +120,22 @@ public class LootableBodies extends JavaPlugin {
     @Override
     protected void start() {
         LOGGER.atInfo().log("[LootableBodies] Ready");
+    }
+
+    private static ItemStack[] snapshotContainer(ItemContainer container) {
+        if (container == null) return new ItemStack[0];
+        ItemStack[] snapshot = new ItemStack[container.getCapacity()];
+        for (short i = 0; i < container.getCapacity(); ++i) {
+            snapshot[i] = container.getItemStack(i);
+        }
+        return snapshot;
+    }
+
+    private static boolean hasItems(ItemStack[] slots) {
+        if (slots == null) return false;
+        for (ItemStack s : slots) {
+            if (!ItemStack.isEmpty(s)) return true;
+        }
+        return false;
     }
 }

@@ -58,7 +58,7 @@ public class OpenBodyBase extends ActionBase {
         BodySource bodySource = bodyComponent != null ? bodyComponent.bodySource : BodySource.DEATH;
 
         ContainerWindow containerWindow = new ContainerWindow(storage);
-        containerWindow.registerCloseEvent((_) -> {
+        containerWindow.registerCloseEvent((w) -> {
             if (storage.isEmpty() && bodySource == BodySource.DEATH) {
                 npcEntity.remove();
             }
