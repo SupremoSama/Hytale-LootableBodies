@@ -4,7 +4,6 @@ import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
-import com.hypixel.hytale.server.core.asset.type.model.config.Model;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.event.events.player.PlayerDisconnectEvent;
 import com.hypixel.hytale.server.core.event.events.player.PlayerReadyEvent;
@@ -25,7 +24,6 @@ import com.supremosan.lootablebodies.events.CreateBodyOnDeathEvent;
 import com.supremosan.lootablebodies.system.BodyManager;
 import com.supremosan.lootablebodies.system.BodySkinReapplySystem;
 
-import java.lang.reflect.Field;
 import java.util.UUID;
 
 public class LootableBodies extends JavaPlugin {
@@ -33,6 +31,10 @@ public class LootableBodies extends JavaPlugin {
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
 
     public static ComponentType<EntityStore, BodyComponent> bodyComponentType;
+
+    public static boolean isBodySpawnAllowed(World world) {
+        return !world.getWorldConfig().isBlockTicking();
+    }
 
     public LootableBodies(JavaPluginInit init) {
         super(init);
@@ -48,27 +50,18 @@ public class LootableBodies extends JavaPlugin {
         this.getEntityStoreRegistry().registerSystem(new CreateBodyOnDeathEvent());
         this.getEntityStoreRegistry().registerSystem(new BodySkinReapplySystem());
 
-        Field modelReferenceScaleField;
-        try {
-            modelReferenceScaleField = Model.ModelReference.class.getDeclaredField("scale");
-        } catch (NoSuchFieldException e) {
-            throw new RuntimeException(e);
-        }
-        modelReferenceScaleField.setAccessible(true);
-        try {
-            modelReferenceScaleField.set(Model.ModelReference.DEFAULT_PLAYER_MODEL, 1.0F);
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
-
         this.getEventRegistry().registerGlobal(PlayerDisconnectEvent.class, event -> {
             PlayerRef playerRef = event.getPlayerRef();
-            UUID uuid = playerRef.getUuid();
             Ref<EntityStore> ref = playerRef.getReference();
             if (ref == null) return;
 
             Store<EntityStore> store = ref.getStore();
             World world = store.getExternalData().getWorld();
+
+            if (isBodySpawnAllowed(world)) {
+                return;
+            }
+
             world.execute(() -> {
                 InventoryComponent.Armor armorComp = store.getComponent(ref, InventoryComponent.Armor.getComponentType());
                 InventoryComponent.Storage storageComp = store.getComponent(ref, InventoryComponent.Storage.getComponentType());
@@ -86,9 +79,7 @@ public class LootableBodies extends JavaPlugin {
                 boolean hasAny = hasItems(storageItems) || hasItems(hotbarItems) || hasItems(backpackItems) || hasItems(armorItems);
                 if (!hasAny) return;
 
-                LOGGER.atInfo().log("[LootableBodies] Saving body for %s", uuid);
-
-                BodyManager.spawnBody(store, ref, uuid, storageItems, hotbarItems, backpackItems, armorItems, BodySource.LOGOUT);
+                BodyManager.spawnBody(store, ref, storageItems, hotbarItems, backpackItems, armorItems, BodySource.LOGOUT);
             });
         });
 

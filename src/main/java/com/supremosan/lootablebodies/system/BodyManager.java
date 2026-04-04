@@ -2,7 +2,6 @@ package com.supremosan.lootablebodies.system;
 
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
-import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.server.core.asset.type.model.config.Model;
 import com.hypixel.hytale.server.core.asset.type.model.config.ModelAsset;
@@ -27,39 +26,31 @@ import java.util.Objects;
 import java.util.UUID;
 
 public class BodyManager {
-
-    private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
     private static final String BODY_DEATH_ROLE = "Body_Death_Entity_Role";
     private static final String BODY_LOGOUT_ROLE = "Body_Logout_Entity_Role";
 
     public static void spawnBody(
             Store<EntityStore> store,
             Ref<EntityStore> ref,
-            UUID uuid,
             ItemStack[] storageItems,
             ItemStack[] hotbarItems,
             ItemStack[] backpackItems,
             ItemStack[] armorItems,
             BodySource source
     ) {
-        LOGGER.atInfo().log("[BodyManager] spawnBody called, source=%s, uuid=%s", source, uuid);
-
         TransformComponent transformComponent = store.getComponent(ref, TransformComponent.getComponentType());
         if (transformComponent == null) {
-            LOGGER.atInfo().log("[BodyManager] TransformComponent is null, aborting");
             return;
         }
 
         PlayerSkinComponent playerSkinComponent = store.getComponent(ref, PlayerSkinComponent.getComponentType());
         if (playerSkinComponent == null) {
-            LOGGER.atInfo().log("[BodyManager] PlayerSkinComponent is null, aborting");
             return;
         }
 
         String roleName = source == BodySource.DEATH ? BODY_DEATH_ROLE : BODY_LOGOUT_ROLE;
         int roleIndex = NPCPlugin.get().getIndex(roleName);
         if (roleIndex < 0) {
-            LOGGER.atInfo().log("[BodyManager] Role not found: %s", roleName);
             return;
         }
 
@@ -76,7 +67,6 @@ public class BodyManager {
         );
 
         if (pair == null) {
-            LOGGER.atInfo().log("[BodyManager] spawnEntity returned null");
             return;
         }
 
@@ -95,11 +85,6 @@ public class BodyManager {
         addNonEmpty(backpackItems, allItems);
         addNonEmpty(armorItems, allItems);
 
-        LOGGER.atInfo().log("[BodyManager] spawnBody: merged item count=%d", allItems.size());
-        for (int i = 0; i < allItems.size(); i++) {
-            LOGGER.atInfo().log("[BodyManager]   allItems[%d] = %s x%d", i, allItems.get(i).getItem(), allItems.get(i).getQuantity());
-        }
-
         List<ItemStack> merged = mergeStacks(allItems);
         short capacity = (short) Math.max(merged.size(), 1);
         SimpleItemContainer storageContainer = new SimpleItemContainer(capacity);
@@ -107,27 +92,7 @@ public class BodyManager {
             storageContainer.setItemStackForSlot(i, merged.get(i));
         }
 
-        LOGGER.atInfo().log("[BodyManager] spawnBody: body storage capacity=%d", capacity);
-        for (short i = 0; i < storageContainer.getCapacity(); i++) {
-            ItemStack s = storageContainer.getItemStack(i);
-            if (!ItemStack.isEmpty(s)) {
-                LOGGER.atInfo().log("[BodyManager]   storage[%d] = %s x%d", i, s.getItem(), s.getQuantity());
-            }
-        }
-
         newEntityStore.putComponent(newEntityRef, InventoryComponent.Storage.getComponentType(), new InventoryComponent.Storage(storageContainer));
-
-        BodyComponent bodyComponent = new BodyComponent(playerSkinComponent, uuid, source, storageItems, hotbarItems, backpackItems, armorItems);
-        LOGGER.atInfo().log("[BodyManager] BodyComponent before put: owner=%s source=%s", bodyComponent.ownerUuidSerialized, bodyComponent.bodySource);
-        newEntityStore.putComponent(newEntityRef, LootableBodies.bodyComponentType, bodyComponent);
-
-        BodyComponent readBack = newEntityStore.getComponent(newEntityRef, LootableBodies.bodyComponentType);
-        LOGGER.atInfo().log("[BodyManager] BodyComponent readBack: owner=%s source=%s",
-                readBack != null ? readBack.ownerUuidSerialized : "NULL",
-                readBack != null ? readBack.bodySource : "NULL");
-
-        LOGGER.atInfo().log("[BodyManager] snapshot counts: storage=%d hotbar=%d backpack=%d armor=%d",
-                countNonEmpty(storageItems), countNonEmpty(hotbarItems), countNonEmpty(backpackItems), countNonEmpty(armorItems));
     }
 
     public static void syncBodyToPlayer(UUID uuid, Store<EntityStore> playerStore, Ref<EntityStore> playerRef) {
@@ -137,7 +102,6 @@ public class BodyManager {
 
         Ref<EntityStore> bodyRef = findBodyRefByPlayer(uuid, BodySource.LOGOUT, playerStore);
         if (bodyRef == null || !bodyRef.isValid()) {
-            LOGGER.atInfo().log("[BodyManager] syncBodyToPlayer: no LOGOUT body found for %s", uuid);
             return;
         }
 
@@ -145,30 +109,12 @@ public class BodyManager {
 
         BodyComponent bodyComponent = bodyStore.getComponent(bodyRef, LootableBodies.bodyComponentType);
         if (bodyComponent == null) {
-            LOGGER.atInfo().log("[BodyManager] syncBodyToPlayer: BodyComponent is null for %s", uuid);
             forceRemoveBody(bodyRef, bodyStore);
             return;
         }
 
         InventoryComponent.Storage bodyStorageComp = bodyStore.getComponent(bodyRef, InventoryComponent.Storage.getComponentType());
         ItemContainer bodyLive = bodyStorageComp != null ? bodyStorageComp.getInventory() : null;
-
-        LOGGER.atInfo().log("[BodyManager] syncBodyToPlayer: bodyLive capacity=%s",
-                bodyLive != null ? bodyLive.getCapacity() : "NULL");
-        if (bodyLive != null) {
-            for (short i = 0; i < bodyLive.getCapacity(); i++) {
-                ItemStack s = bodyLive.getItemStack(i);
-                if (!ItemStack.isEmpty(s)) {
-                    LOGGER.atInfo().log("[BodyManager]   bodyLive[%d] = %s x%d", i, s.getItem(), s.getQuantity());
-                }
-            }
-        }
-
-        LOGGER.atInfo().log("[BodyManager] syncBodyToPlayer: snapshot counts: storage=%d hotbar=%d backpack=%d armor=%d",
-                countNonEmpty(bodyComponent.getStorageItems()),
-                countNonEmpty(bodyComponent.getHotbarItems()),
-                countNonEmpty(bodyComponent.getBackpackItems()),
-                countNonEmpty(bodyComponent.getArmorItems()));
 
         InventoryComponent.Storage playerStorageComp = playerStore.getComponent(playerRef, InventoryComponent.Storage.getComponentType());
         InventoryComponent.Hotbar playerHotbarComp = playerStore.getComponent(playerRef, InventoryComponent.Hotbar.getComponentType());
@@ -180,24 +126,15 @@ public class BodyManager {
         ItemContainer playerBackpack = playerBackpackComp != null ? playerBackpackComp.getInventory() : null;
         ItemContainer playerArmor = playerArmorComp != null ? playerArmorComp.getInventory() : null;
 
-        LOGGER.atInfo().log("[BodyManager] player containers: storage=%s hotbar=%s backpack=%s armor=%s",
-                playerStorage != null ? "cap=" + playerStorage.getCapacity() : "NULL",
-                playerHotbar != null ? "cap=" + playerHotbar.getCapacity() : "NULL",
-                playerBackpack != null ? "cap=" + playerBackpack.getCapacity() : "NULL",
-                playerArmor != null ? "cap=" + playerArmor.getCapacity() : "NULL");
-
         clearContainer(playerStorage);
         clearContainer(playerHotbar);
         clearContainer(playerBackpack);
         clearContainer(playerArmor);
 
-        int restoredStorage = restoreFromLiveBody(bodyComponent.getStorageItems(), bodyLive, playerStorage);
-        int restoredHotbar = restoreFromLiveBody(bodyComponent.getHotbarItems(), bodyLive, playerHotbar);
-        int restoredBackpack = restoreFromLiveBody(bodyComponent.getBackpackItems(), bodyLive, playerBackpack);
-        int restoredArmor = restoreFromLiveBody(bodyComponent.getArmorItems(), bodyLive, playerArmor);
-
-        LOGGER.atInfo().log("[BodyManager] syncBodyToPlayer: restored storage=%d hotbar=%d backpack=%d armor=%d for %s",
-                restoredStorage, restoredHotbar, restoredBackpack, restoredArmor, uuid);
+        restoreFromLiveBody(bodyComponent.getStorageItems(), bodyLive, playerStorage);
+        restoreFromLiveBody(bodyComponent.getHotbarItems(), bodyLive, playerHotbar);
+        restoreFromLiveBody(bodyComponent.getBackpackItems(), bodyLive, playerBackpack);
+        restoreFromLiveBody(bodyComponent.getArmorItems(), bodyLive, playerArmor);
 
         forceRemoveBody(bodyRef, bodyStore);
     }
@@ -211,10 +148,8 @@ public class BodyManager {
         }
     }
 
-    private static int restoreFromLiveBody(ItemStack[] snapshot, ItemContainer bodyLive, ItemContainer playerTarget) {
-        if (snapshot == null || playerTarget == null || bodyLive == null) return 0;
-        int count = 0;
-
+    private static void restoreFromLiveBody(ItemStack[] snapshot, ItemContainer bodyLive, ItemContainer playerTarget) {
+        if (snapshot == null || playerTarget == null || bodyLive == null) return;
         for (short slot = 0; slot < snapshot.length && slot < playerTarget.getCapacity(); ++slot) {
             ItemStack original = snapshot[slot];
             if (ItemStack.isEmpty(original)) continue;
@@ -222,14 +157,9 @@ public class BodyManager {
             ItemStack remaining = consumeFromLive(original, bodyLive);
             if (!ItemStack.isEmpty(remaining)) {
                 playerTarget.setItemStackForSlot(slot, remaining);
-                LOGGER.atInfo().log("[BodyManager]   restore slot=%d item=%s x%d", slot, remaining.getItem(), remaining.getQuantity());
-                count++;
-            } else {
-                LOGGER.atInfo().log("[BodyManager]   restore slot=%d item=%s - NOT FOUND IN BODY (stolen or missing)", slot, original.getItem());
             }
         }
 
-        return count;
     }
 
     private static ItemStack consumeFromLive(ItemStack original, ItemContainer bodyLive) {
@@ -254,17 +184,14 @@ public class BodyManager {
 
     public static void forceRemoveBody(Ref<EntityStore> bodyRef, Store<EntityStore> bodyStore) {
         if (bodyRef == null || bodyStore == null || !bodyRef.isValid()) {
-            LOGGER.atInfo().log("[BodyManager] forceRemoveBody: invalid ref or store");
             return;
         }
 
         NPCEntity npcEntity = bodyStore.getComponent(bodyRef, Objects.requireNonNull(NPCEntity.getComponentType()));
         if (npcEntity == null) {
-            LOGGER.atInfo().log("[BodyManager] forceRemoveBody: NPCEntity is null");
             return;
         }
 
-        LOGGER.atInfo().log("[BodyManager] forceRemoveBody: removing body entity");
         npcEntity.remove();
     }
 
@@ -288,8 +215,6 @@ public class BodyManager {
                 if (bodyComponent == null) {
                     continue;
                 }
-
-                LOGGER.atInfo().log("[BodyManager] scanning body: owner='%s' source=%s", bodyComponent.ownerUuidSerialized, bodyComponent.bodySource);
 
                 if (bodyComponent.ownerUuidSerialized.isEmpty()) {
                     continue;
@@ -316,15 +241,6 @@ public class BodyManager {
         for (ItemStack s : items) {
             if (!ItemStack.isEmpty(s)) target.add(s);
         }
-    }
-
-    private static int countNonEmpty(ItemStack[] items) {
-        if (items == null) return 0;
-        int count = 0;
-        for (ItemStack s : items) {
-            if (!ItemStack.isEmpty(s)) count++;
-        }
-        return count;
     }
 
     private static List<ItemStack> mergeStacks(List<ItemStack> stacks) {

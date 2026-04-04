@@ -8,13 +8,11 @@ import com.hypixel.hytale.component.Component;
 import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.protocol.PlayerSkin;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
-import com.hypixel.hytale.server.core.modules.entity.player.PlayerSkinComponent;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.supremosan.lootablebodies.LootableBodies;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.UUID;
 
 public class BodyComponent implements Component<EntityStore> {
 
@@ -41,24 +39,6 @@ public class BodyComponent implements Component<EntityStore> {
 
     @Nonnull
     private ItemStack[] armorItems;
-
-    public BodyComponent(
-            PlayerSkinComponent toCopyFrom,
-            UUID ownerUuid,
-            BodySource bodySource,
-            ItemStack[] storageItems,
-            ItemStack[] hotbarItems,
-            ItemStack[] backpackItems,
-            ItemStack[] armorItems
-    ) {
-        this.playerSkinSerialized = stringifyPlayerSkin(toCopyFrom.getPlayerSkin());
-        this.ownerUuidSerialized = ownerUuid != null ? ownerUuid.toString() : "";
-        this.bodySource = bodySource != null ? bodySource : BodySource.DEATH;
-        this.storageItems = storageItems != null ? storageItems : new ItemStack[0];
-        this.hotbarItems = hotbarItems != null ? hotbarItems : new ItemStack[0];
-        this.backpackItems = backpackItems != null ? backpackItems : new ItemStack[0];
-        this.armorItems = armorItems != null ? armorItems : new ItemStack[0];
-    }
 
     public BodyComponent(@Nonnull String playerSkinSerialized, @Nonnull String ownerUuidSerialized, @Nonnull String bodySourceSerialized) {
         this.playerSkinSerialized = playerSkinSerialized;
@@ -100,15 +80,6 @@ public class BodyComponent implements Component<EntityStore> {
         } catch (IllegalArgumentException ignored) {
             return BodySource.DEATH;
         }
-    }
-
-    private static String stringifyPlayerSkin(PlayerSkin skin) {
-        return skin.bodyCharacteristic + ";" + skin.ears + ";" + skin.skinFeature + ";" +
-                skin.eyes + ";" + skin.eyebrows + ";" + skin.gloves + ";" + skin.overpants + ";" +
-                skin.pants + ";" + skin.shoes + ";" + skin.cape + ";" + skin.earAccessory + ";" +
-                skin.face + ";" + skin.faceAccessory + ";" + skin.facialHair + ";" + skin.haircut + ";" +
-                skin.headAccessory + ";" + skin.mouth + ";" + skin.overtop + ";" + skin.undertop + ";" +
-                skin.underwear;
     }
 
     public PlayerSkin toPlayerSkin() {

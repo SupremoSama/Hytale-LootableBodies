@@ -7,7 +7,6 @@ import com.hypixel.hytale.component.dependency.Dependency;
 import com.hypixel.hytale.component.dependency.Order;
 import com.hypixel.hytale.component.dependency.SystemDependency;
 import com.hypixel.hytale.component.query.Query;
-import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.util.MathUtil;
 import com.hypixel.hytale.protocol.GameMode;
 import com.hypixel.hytale.server.core.asset.type.gameplay.DeathConfig;
@@ -24,6 +23,7 @@ import com.hypixel.hytale.server.core.modules.entitystats.EntityStatMap;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.supremosan.lootablebodies.LootableBodies;
 import com.supremosan.lootablebodies.components.BodySource;
 import com.supremosan.lootablebodies.system.BodyManager;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
@@ -35,9 +35,6 @@ import java.util.Set;
 import java.util.UUID;
 
 public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
-
-    private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
-
     @Override
     public @Nonnull Set<Dependency<EntityStore>> getDependencies() {
         return Set.of(
@@ -50,26 +47,26 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
     public void onComponentAdded(@Nonnull Ref<EntityStore> ref, @Nonnull DeathComponent component, @Nonnull Store<EntityStore> store, @Nonnull CommandBuffer<EntityStore> commandBuffer) {
         Player player = store.getComponent(ref, Player.getComponentType());
         if (player == null) {
-            LOGGER.atInfo().log("[CreateBodyOnDeathEvent] Not a player, skipping");
             return;
         }
 
         PlayerRef playerRef = store.getComponent(ref, PlayerRef.getComponentType());
         if (playerRef == null) {
-            LOGGER.atInfo().log("[CreateBodyOnDeathEvent] player ref not found, skipping");
             return;
         }
 
         if (player.getGameMode() == GameMode.Creative) {
-            LOGGER.atInfo().log("[CreateBodyOnDeathEvent] Creative mode, skipping");
             return;
         }
 
         UUID uuid = playerRef.getUuid();
         World world = store.getExternalData().getWorld();
-        DeathConfig deathConfig = world.getDeathConfig();
 
-        LOGGER.atInfo().log("[CreateBodyOnDeathEvent] ItemsLossMode=%s", deathConfig.getItemsLossMode());
+        if (LootableBodies.isBodySpawnAllowed(world)) {
+            return;
+        }
+
+        DeathConfig deathConfig = world.getDeathConfig();
 
         if (deathConfig.getItemsLossMode() == ItemsLossMode.NONE) {
             return;
@@ -164,17 +161,13 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
                 break;
         }
 
-        LOGGER.atInfo().log("[CreateBodyOnDeathEvent] itemsToDrop=%s", itemsToDrop.size());
-
         component.setItemsLossMode(ItemsLossMode.NONE);
         component.setItemsAmountLossPercentage(0.0D);
         component.setItemsDurabilityLossPercentage(0.0D);
 
         if (!itemsToDrop.isEmpty()) {
             component.setItemsLostOnDeath(itemsToDrop);
-
-            LOGGER.atInfo().log("[CreateBodyOnDeathEvent] Scheduling BodyManager.spawnBody via world.execute");
-            world.execute(() -> BodyManager.spawnBody(store, ref, uuid, storageItems, hotbarItems, backpackItems, armorItems, BodySource.DEATH));
+            world.execute(() -> BodyManager.spawnBody(store, ref, storageItems, hotbarItems, backpackItems, armorItems, BodySource.DEATH));
         }
     }
 
