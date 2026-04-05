@@ -30,19 +30,32 @@ public class BodySkinReapplySystem extends HolderSystem<EntityStore> {
 
         PlayerSkinComponent skinComp = new PlayerSkinComponent(skin);
         holder.putComponent(PlayerSkinComponent.getComponentType(), skinComp);
+        skinComp.setNetworkOutdated();
 
         ModelComponent modelComp = holder.getComponent(ModelComponent.getComponentType());
         if (modelComp == null) return;
 
-        Model cosmeticModel = CosmeticListener.buildCosmeticModel(
-                modelComp.getModel(),
-                skin,
-                EnumSet.noneOf(Cosmetic.class),
-                "Body_CustomModel",
-                null
-        );
+        Model baseModel = modelComp.getModel();
+        if (baseModel == null) return;
 
-        holder.putComponent(ModelComponent.getComponentType(), new ModelComponent(cosmeticModel));
+        try {
+            float scale = baseModel.getScale();
+            if (scale <= 0f) return;
+        } catch (Exception ignored) {
+            return;
+        }
+
+        try {
+            Model cosmeticModel = CosmeticListener.buildCosmeticModel(
+                    baseModel,
+                    skin,
+                    EnumSet.noneOf(Cosmetic.class),
+                    "Body_CustomModel",
+                    null
+            );
+            holder.putComponent(ModelComponent.getComponentType(), new ModelComponent(cosmeticModel));
+        } catch (Exception ignored) {
+        }
     }
 
     @Override

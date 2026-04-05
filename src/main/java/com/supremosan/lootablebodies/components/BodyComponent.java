@@ -69,6 +69,11 @@ public class BodyComponent implements Component<EntityStore> {
     public ItemStack[] getBackpackItems() { return backpackItems; }
     public ItemStack[] getArmorItems() { return armorItems; }
 
+    public void setStorageItems(@Nonnull ItemStack[] items) { this.storageItems = items; }
+    public void setHotbarItems(@Nonnull ItemStack[] items) { this.hotbarItems = items; }
+    public void setBackpackItems(@Nonnull ItemStack[] items) { this.backpackItems = items; }
+    public void setArmorItems(@Nonnull ItemStack[] items) { this.armorItems = items; }
+
     public String toString() {
         return this.playerSkinSerialized;
     }

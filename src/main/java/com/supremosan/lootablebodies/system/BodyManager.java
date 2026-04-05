@@ -12,6 +12,7 @@ import com.hypixel.hytale.server.core.inventory.container.SimpleItemContainer;
 import com.hypixel.hytale.server.core.modules.entity.component.ModelComponent;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.modules.entity.player.PlayerSkinComponent;
+import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.NPCPlugin;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
@@ -47,6 +48,11 @@ public class BodyManager {
         if (playerSkinComponent == null) {
             return;
         }
+
+        PlayerRef playerRefComponent = store.getComponent(ref, PlayerRef.getComponentType());
+        String ownerUuid = playerRefComponent != null ? playerRefComponent.getUuid().toString() : "";
+
+        String skinSerialized = serializePlayerSkin(playerSkinComponent);
 
         String roleName = source == BodySource.DEATH ? BODY_DEATH_ROLE : BODY_LOGOUT_ROLE;
         int roleIndex = NPCPlugin.get().getIndex(roleName);
@@ -93,6 +99,44 @@ public class BodyManager {
         }
 
         newEntityStore.putComponent(newEntityRef, InventoryComponent.Storage.getComponentType(), new InventoryComponent.Storage(storageContainer));
+
+        BodyComponent bodyComponent = new BodyComponent(skinSerialized, ownerUuid, source.name());
+        bodyComponent.setStorageItems(storageItems);
+        bodyComponent.setHotbarItems(hotbarItems);
+        bodyComponent.setBackpackItems(backpackItems);
+        bodyComponent.setArmorItems(armorItems);
+        newEntityStore.putComponent(newEntityRef, LootableBodies.bodyComponentType, bodyComponent);
+    }
+
+    private static String serializePlayerSkin(PlayerSkinComponent skinComponent) {
+        if (skinComponent == null) return "";
+        var skin = skinComponent.getPlayerSkin();
+        return String.join(";",
+                nullToEmpty(skin.bodyCharacteristic),
+                nullToEmpty(skin.ears),
+                nullToEmpty(skin.skinFeature),
+                nullToEmpty(skin.eyes),
+                nullToEmpty(skin.eyebrows),
+                nullToEmpty(skin.gloves),
+                nullToEmpty(skin.overpants),
+                nullToEmpty(skin.pants),
+                nullToEmpty(skin.shoes),
+                nullToEmpty(skin.cape),
+                nullToEmpty(skin.earAccessory),
+                nullToEmpty(skin.face),
+                nullToEmpty(skin.faceAccessory),
+                nullToEmpty(skin.facialHair),
+                nullToEmpty(skin.haircut),
+                nullToEmpty(skin.headAccessory),
+                nullToEmpty(skin.mouth),
+                nullToEmpty(skin.overtop),
+                nullToEmpty(skin.undertop),
+                nullToEmpty(skin.underwear)
+        );
+    }
+
+    private static String nullToEmpty(String s) {
+        return s != null ? s : "";
     }
 
     public static void syncBodyToPlayer(UUID uuid, Store<EntityStore> playerStore, Ref<EntityStore> playerRef) {
@@ -159,7 +203,6 @@ public class BodyManager {
                 playerTarget.setItemStackForSlot(slot, remaining);
             }
         }
-
     }
 
     private static ItemStack consumeFromLive(ItemStack original, ItemContainer bodyLive) {
