@@ -43,6 +43,8 @@ public class BodyManager {
             ItemStack[] armorItems,
             ItemStack[] utilityItems,
             ItemStack[] toolItems,
+            ItemStack[] abilityItems,
+            ItemStack[] runeBagItems,
             BodySource source
     ) {
         if (ref == null || !ref.isValid()) {
@@ -100,6 +102,37 @@ public class BodyManager {
         }
 
         Vector3d position = transformComponent.getPosition();
+        String playerName = playerRefComponent != null ? playerRefComponent.getUsername() : null;
+
+        PlayerSkinComponent skinComp = new PlayerSkinComponent(playerSkinComponent.getPlayerSkin().clone());
+        skinComp.setNetworkOutdated();
+
+        List<ItemStack> allItems = new ArrayList<>();
+        addNonEmpty(storageItems, allItems);
+        addNonEmpty(hotbarItems, allItems);
+        addNonEmpty(backpackItems, allItems);
+        addNonEmpty(armorItems, allItems);
+        addNonEmpty(utilityItems, allItems);
+        addNonEmpty(toolItems, allItems);
+        addNonEmpty(abilityItems, allItems);
+        addNonEmpty(runeBagItems, allItems);
+
+        List<ItemStack> merged = mergeStacks(allItems);
+        short capacity = (short) Math.max(merged.size(), 1);
+        SimpleItemContainer storageContainer = new SimpleItemContainer(capacity);
+        for (short i = 0; i < merged.size(); ++i) {
+            storageContainer.setItemStackForSlot(i, merged.get(i));
+        }
+
+        BodyComponent bodyComponent = new BodyComponent(skinSerialized, ownerUuid, source.name());
+        bodyComponent.setStorageItems(storageItems != null ? storageItems : new ItemStack[0]);
+        bodyComponent.setHotbarItems(hotbarItems != null ? hotbarItems : new ItemStack[0]);
+        bodyComponent.setBackpackItems(backpackItems != null ? backpackItems : new ItemStack[0]);
+        bodyComponent.setArmorItems(armorItems != null ? armorItems : new ItemStack[0]);
+        bodyComponent.setUtilityItems(utilityItems != null ? utilityItems : new ItemStack[0]);
+        bodyComponent.setToolItems(toolItems != null ? toolItems : new ItemStack[0]);
+        bodyComponent.setAbilityItems(abilityItems != null ? abilityItems : new ItemStack[0]);
+        bodyComponent.setRuneBagItems(runeBagItems != null ? runeBagItems : new ItemStack[0]);
 
         Pair<Ref<EntityStore>, NPCEntity> pair = NPCPlugin.get().spawnEntity(
                 store,
@@ -107,6 +140,14 @@ public class BodyManager {
                 position,
                 transformComponent.getRotation(),
                 newModel,
+                (npcEntity, holder, s) -> {
+                    holder.putComponent(PlayerSkinComponent.getComponentType(), skinComp);
+                    holder.putComponent(DisplayNameComponent.getComponentType(), new DisplayNameComponent(
+                            Message.translation("server.npcRoles.Body_Entity.name").param("player", playerName != null ? playerName : "")
+                    ));
+                    holder.putComponent(InventoryComponent.Storage.getComponentType(), new InventoryComponent.Storage(storageContainer));
+                    holder.putComponent(LootableBodies.bodyComponentType, bodyComponent);
+                },
                 null
         );
 
@@ -117,39 +158,12 @@ public class BodyManager {
         Ref<EntityStore> newEntityRef = pair.first();
         Store<EntityStore> newEntityStore = newEntityRef.getStore();
 
-        PlayerSkinComponent skinComp = new PlayerSkinComponent(playerSkinComponent.getPlayerSkin().clone());
+        // Ensure components are also set on store if not captured by preAddToWorld
         newEntityStore.putComponent(newEntityRef, PlayerSkinComponent.getComponentType(), skinComp);
-        skinComp.setNetworkOutdated();
-
-        String playerName = playerRefComponent != null ? playerRefComponent.getUsername() : null;
         newEntityStore.putComponent(newEntityRef, DisplayNameComponent.getComponentType(), new DisplayNameComponent(
                 Message.translation("server.npcRoles.Body_Entity.name").param("player", playerName != null ? playerName : "")
         ));
-
-        List<ItemStack> allItems = new ArrayList<>();
-        addNonEmpty(storageItems, allItems);
-        addNonEmpty(hotbarItems, allItems);
-        addNonEmpty(backpackItems, allItems);
-        addNonEmpty(armorItems, allItems);
-        addNonEmpty(utilityItems, allItems);
-        addNonEmpty(toolItems, allItems);
-
-        List<ItemStack> merged = mergeStacks(allItems);
-        short capacity = (short) Math.max(merged.size(), 1);
-        SimpleItemContainer storageContainer = new SimpleItemContainer(capacity);
-        for (short i = 0; i < merged.size(); ++i) {
-            storageContainer.setItemStackForSlot(i, merged.get(i));
-        }
-
         newEntityStore.putComponent(newEntityRef, InventoryComponent.Storage.getComponentType(), new InventoryComponent.Storage(storageContainer));
-
-        BodyComponent bodyComponent = new BodyComponent(skinSerialized, ownerUuid, source.name());
-        bodyComponent.setStorageItems(storageItems);
-        bodyComponent.setHotbarItems(hotbarItems);
-        bodyComponent.setBackpackItems(backpackItems);
-        bodyComponent.setArmorItems(armorItems);
-        bodyComponent.setUtilityItems(utilityItems);
-        bodyComponent.setToolItems(toolItems);
         newEntityStore.putComponent(newEntityRef, LootableBodies.bodyComponentType, bodyComponent);
     }
 
@@ -218,6 +232,8 @@ public class BodyManager {
         clearSection(playerStore, playerRef, InventoryComponent.Armor.getComponentType());
         clearSection(playerStore, playerRef, InventoryComponent.Utility.getComponentType());
         clearSection(playerStore, playerRef, InventoryComponent.Tool.getComponentType());
+        clearSection(playerStore, playerRef, InventoryComponent.AbilitySlots.getComponentType());
+        clearSection(playerStore, playerRef, InventoryComponent.RuneBag.getComponentType());
 
         restoreFromLive(bodyComponent.getStorageItems(), bodyLive, playerStore, playerRef, InventoryComponent.Storage.getComponentType());
         restoreFromLive(bodyComponent.getHotbarItems(), bodyLive, playerStore, playerRef, InventoryComponent.Hotbar.getComponentType());
@@ -225,6 +241,8 @@ public class BodyManager {
         restoreFromLive(bodyComponent.getArmorItems(), bodyLive, playerStore, playerRef, InventoryComponent.Armor.getComponentType());
         restoreFromLive(bodyComponent.getUtilityItems(), bodyLive, playerStore, playerRef, InventoryComponent.Utility.getComponentType());
         restoreFromLive(bodyComponent.getToolItems(), bodyLive, playerStore, playerRef, InventoryComponent.Tool.getComponentType());
+        restoreFromLive(bodyComponent.getAbilityItems(), bodyLive, playerStore, playerRef, InventoryComponent.AbilitySlots.getComponentType());
+        restoreFromLive(bodyComponent.getRuneBagItems(), bodyLive, playerStore, playerRef, InventoryComponent.RuneBag.getComponentType());
 
         // Only remove the corpse once it is completely empty, so nothing is ever lost.
         if (bodyLive.isEmpty()) {

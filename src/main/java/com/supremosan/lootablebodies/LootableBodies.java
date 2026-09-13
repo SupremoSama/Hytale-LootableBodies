@@ -73,6 +73,8 @@ public class LootableBodies extends JavaPlugin {
                 InventoryComponent.Backpack backpackComp = store.getComponent(ref, InventoryComponent.Backpack.getComponentType());
                 InventoryComponent.Utility utilityComp = store.getComponent(ref, InventoryComponent.Utility.getComponentType());
                 InventoryComponent.Tool toolComp = store.getComponent(ref, InventoryComponent.Tool.getComponentType());
+                InventoryComponent.AbilitySlots abilityComp = store.getComponent(ref, InventoryComponent.AbilitySlots.getComponentType());
+                InventoryComponent.RuneBag runeBagComp = store.getComponent(ref, InventoryComponent.RuneBag.getComponentType());
                 TransformComponent transform = store.getComponent(ref, TransformComponent.getComponentType());
 
                 if (transform == null) return;
@@ -83,13 +85,16 @@ public class LootableBodies extends JavaPlugin {
                 ItemStack[] armorItems = snapshotContainer(armorComp != null ? armorComp.getInventory() : null);
                 ItemStack[] utilityItems = snapshotContainer(utilityComp != null ? utilityComp.getInventory() : null);
                 ItemStack[] toolItems = snapshotContainer(toolComp != null ? toolComp.getInventory() : null);
+                ItemStack[] abilityItems = snapshotContainer(abilityComp != null ? abilityComp.getInventory() : null);
+                ItemStack[] runeBagItems = snapshotContainer(runeBagComp != null ? runeBagComp.getInventory() : null);
 
                 boolean hasAny = hasItems(storageItems) || hasItems(hotbarItems) || hasItems(backpackItems)
-                        || hasItems(armorItems) || hasItems(utilityItems) || hasItems(toolItems);
+                        || hasItems(armorItems) || hasItems(utilityItems) || hasItems(toolItems)
+                        || hasItems(abilityItems) || hasItems(runeBagItems);
                 if (!hasAny) return;
 
                 BodyManager.spawnBody(store, ref, storageItems, hotbarItems, backpackItems, armorItems,
-                        utilityItems, toolItems, BodySource.LOGOUT);
+                        utilityItems, toolItems, abilityItems, runeBagItems, BodySource.LOGOUT);
             });
         });
 

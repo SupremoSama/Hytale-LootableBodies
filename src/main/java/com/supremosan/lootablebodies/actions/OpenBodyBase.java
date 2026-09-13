@@ -65,7 +65,7 @@ public class OpenBodyBase extends ActionBase {
             }
         });
 
-        playerComponent.getPageManager().setPageWithWindows(ref, store, Page.Inventory, true, bodyWindow);
+        playerComponent.getPageManager().setPageWithWindows(playerReference, store, Page.Inventory, true, bodyWindow);
         return true;
     }
 }

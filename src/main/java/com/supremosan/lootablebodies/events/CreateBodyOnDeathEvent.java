@@ -83,6 +83,8 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
         InventoryComponent.Backpack backpackComp = store.getComponent(ref, InventoryComponent.Backpack.getComponentType());
         InventoryComponent.Utility utilityComp = store.getComponent(ref, InventoryComponent.Utility.getComponentType());
         InventoryComponent.Tool toolComp = store.getComponent(ref, InventoryComponent.Tool.getComponentType());
+        InventoryComponent.AbilitySlots abilityComp = store.getComponent(ref, InventoryComponent.AbilitySlots.getComponentType());
+        InventoryComponent.RuneBag runeBagComp = store.getComponent(ref, InventoryComponent.RuneBag.getComponentType());
 
         ItemContainer armorContainer = armorComp != null ? armorComp.getInventory() : null;
         ItemContainer storageContainer = storageComp != null ? storageComp.getInventory() : null;
@@ -90,6 +92,8 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
         ItemContainer backpackContainer = backpackComp != null ? backpackComp.getInventory() : null;
         ItemContainer utilityContainer = utilityComp != null ? utilityComp.getInventory() : null;
         ItemContainer toolContainer = toolComp != null ? toolComp.getInventory() : null;
+        ItemContainer abilityContainer = abilityComp != null ? abilityComp.getInventory() : null;
+        ItemContainer runeBagContainer = runeBagComp != null ? runeBagComp.getInventory() : null;
 
         component.setDisplayDataOnDeathScreen(true);
 
@@ -99,6 +103,8 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
         ItemStack[] armorItems = createEmptySnapshot(armorContainer);
         ItemStack[] utilityItems = createEmptySnapshot(utilityContainer);
         ItemStack[] toolItems = createEmptySnapshot(toolContainer);
+        ItemStack[] abilityItems = createEmptySnapshot(abilityContainer);
+        ItemStack[] runeBagItems = createEmptySnapshot(runeBagContainer);
 
         List<ItemStack> itemsToDrop = new ObjectArrayList<>();
 
@@ -110,6 +116,8 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
                 collectAllLostItems(armorContainer, armorItems, itemsToDrop);
                 collectAllLostItems(utilityContainer, utilityItems, itemsToDrop);
                 collectAllLostItems(toolContainer, toolItems, itemsToDrop);
+                collectAllLostItems(abilityContainer, abilityItems, itemsToDrop);
+                collectAllLostItems(runeBagContainer, runeBagItems, itemsToDrop);
                 break;
             }
 
@@ -120,7 +128,9 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
                         hotbarContainer,
                         backpackContainer,
                         utilityContainer,
-                        toolContainer
+                        toolContainer,
+                        abilityContainer,
+                        runeBagContainer
                 };
 
                 if (component.getItemsDurabilityLossPercentage() > 0.0D) {
@@ -165,6 +175,8 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
                     collectConfiguredLostItems(armorContainer, armorItems, itemsToDrop, itemAmountLossRatio);
                     collectConfiguredLostItems(utilityContainer, utilityItems, itemsToDrop, itemAmountLossRatio);
                     collectConfiguredLostItems(toolContainer, toolItems, itemsToDrop, itemAmountLossRatio);
+                    collectConfiguredLostItems(abilityContainer, abilityItems, itemsToDrop, itemAmountLossRatio);
+                    collectConfiguredLostItems(runeBagContainer, runeBagItems, itemsToDrop, itemAmountLossRatio);
                 }
                 break;
             }
@@ -182,7 +194,7 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
             world.execute(() -> {
                 if (!ref.isValid()) return;
                 BodyManager.spawnBody(store, ref, storageItems, hotbarItems, backpackItems, armorItems,
-                        utilityItems, toolItems, BodySource.DEATH);
+                        utilityItems, toolItems, abilityItems, runeBagItems, BodySource.DEATH);
             });
         }
     }

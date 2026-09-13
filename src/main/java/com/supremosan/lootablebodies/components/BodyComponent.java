@@ -46,6 +46,12 @@ public class BodyComponent implements Component<EntityStore> {
     @Nonnull
     private ItemStack[] toolItems;
 
+    @Nonnull
+    private ItemStack[] abilityItems;
+
+    @Nonnull
+    private ItemStack[] runeBagItems;
+
     public BodyComponent(@Nonnull String playerSkinSerialized, @Nonnull String ownerUuidSerialized, @Nonnull String bodySourceSerialized) {
         this.playerSkinSerialized = playerSkinSerialized;
         this.ownerUuidSerialized = ownerUuidSerialized;
@@ -56,6 +62,8 @@ public class BodyComponent implements Component<EntityStore> {
         this.armorItems = new ItemStack[0];
         this.utilityItems = new ItemStack[0];
         this.toolItems = new ItemStack[0];
+        this.abilityItems = new ItemStack[0];
+        this.runeBagItems = new ItemStack[0];
     }
 
     public BodyComponent() {
@@ -68,6 +76,8 @@ public class BodyComponent implements Component<EntityStore> {
         this.armorItems = new ItemStack[0];
         this.utilityItems = new ItemStack[0];
         this.toolItems = new ItemStack[0];
+        this.abilityItems = new ItemStack[0];
+        this.runeBagItems = new ItemStack[0];
     }
 
     public static ComponentType<EntityStore, BodyComponent> getComponentType() {
@@ -80,6 +90,8 @@ public class BodyComponent implements Component<EntityStore> {
     public ItemStack[] getArmorItems() { return armorItems; }
     public ItemStack[] getUtilityItems() { return utilityItems; }
     public ItemStack[] getToolItems() { return toolItems; }
+    public ItemStack[] getAbilityItems() { return abilityItems; }
+    public ItemStack[] getRuneBagItems() { return runeBagItems; }
 
     public void setStorageItems(@Nonnull ItemStack[] items) { this.storageItems = items; }
     public void setHotbarItems(@Nonnull ItemStack[] items) { this.hotbarItems = items; }
@@ -87,6 +99,8 @@ public class BodyComponent implements Component<EntityStore> {
     public void setArmorItems(@Nonnull ItemStack[] items) { this.armorItems = items; }
     public void setUtilityItems(@Nonnull ItemStack[] items) { this.utilityItems = items; }
     public void setToolItems(@Nonnull ItemStack[] items) { this.toolItems = items; }
+    public void setAbilityItems(@Nonnull ItemStack[] items) { this.abilityItems = items; }
+    public void setRuneBagItems(@Nonnull ItemStack[] items) { this.runeBagItems = items; }
 
     public String toString() {
         return this.playerSkinSerialized;
@@ -136,6 +150,8 @@ public class BodyComponent implements Component<EntityStore> {
         copy.armorItems = this.armorItems;
         copy.utilityItems = this.utilityItems;
         copy.toolItems = this.toolItems;
+        copy.abilityItems = this.abilityItems;
+        copy.runeBagItems = this.runeBagItems;
         return copy;
     }
 
@@ -205,6 +221,20 @@ public class BodyComponent implements Component<EntityStore> {
                         e -> e.toolItems
                 )
                 .documentation("Snapshot of the player tool inventory at body creation")
+                .add()
+                .append(
+                        new KeyedCodec<>("AbilityItems", itemArrayCodec),
+                        (e, v) -> e.abilityItems = v != null ? v : new ItemStack[0],
+                        e -> e.abilityItems
+                )
+                .documentation("Snapshot of the player ability slots at body creation")
+                .add()
+                .append(
+                        new KeyedCodec<>("RuneBagItems", itemArrayCodec),
+                        (e, v) -> e.runeBagItems = v != null ? v : new ItemStack[0],
+                        e -> e.runeBagItems
+                )
+                .documentation("Snapshot of the player rune bag at body creation")
                 .add()
                 .build();
     }
