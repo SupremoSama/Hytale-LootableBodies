@@ -9,6 +9,7 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.math.vector.Rotation3f;
 import com.hypixel.hytale.protocol.AnimationSlot;
 import com.hypixel.hytale.server.core.Message;
+import com.hypixel.hytale.server.core.asset.type.item.config.Item;
 import com.hypixel.hytale.server.core.asset.type.model.config.Model;
 import com.hypixel.hytale.server.core.asset.type.model.config.ModelAsset;
 import com.hypixel.hytale.server.core.entity.AnimationUtils;
@@ -303,7 +304,7 @@ public class BodyManager {
         for (short slot = 0; slot < bodyLive.getCapacity(); ++slot) {
             ItemStack live = bodyLive.getItemStack(slot);
             if (!ItemStack.isEmpty(live)) {
-                if (live.getItem() == null || live.getItem().dropsOnDeath()) {
+                if (!isBuilderTool(live)) {
                     leftoverItems.add(live);
                 }
                 bodyLive.removeItemStackFromSlot(slot);
@@ -344,7 +345,7 @@ public class BodyManager {
         ItemContainer container = component.getInventory();
         for (short slot = 0; slot < container.getCapacity(); ++slot) {
             ItemStack stack = container.getItemStack(slot);
-            if (!ItemStack.isEmpty(stack) && (stack.getItem() == null || stack.getItem().dropsOnDeath())) {
+            if (!ItemStack.isEmpty(stack) && !isBuilderTool(stack)) {
                 container.removeItemStackFromSlot(slot);
             }
         }
@@ -512,7 +513,7 @@ public class BodyManager {
     private static void addNonEmpty(ItemStack[] items, List<ItemStack> target) {
         if (items == null) return;
         for (ItemStack s : items) {
-            if (!ItemStack.isEmpty(s) && (s.getItem() == null || s.getItem().dropsOnDeath())) {
+            if (!ItemStack.isEmpty(s) && !isBuilderTool(s)) {
                 target.add(s);
             }
         }
@@ -557,5 +558,19 @@ public class BodyManager {
         }
 
         return merged;
+    }
+
+    public static boolean isBuilderTool(@Nullable ItemStack stack) {
+        if (stack == null || ItemStack.isEmpty(stack)) return false;
+        String id = stack.getItemId();
+        if (id != null && id.contains("BuilderTool")) return true;
+        try {
+            Item item = stack.getItem();
+            if (item != null && (item.getBuilderTool() != null || item.getBlockSelectorToolData() != null)) {
+                return true;
+            }
+        } catch (Exception ignored) {
+        }
+        return false;
     }
 }

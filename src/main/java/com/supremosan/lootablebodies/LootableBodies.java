@@ -156,7 +156,7 @@ public class LootableBodies extends JavaPlugin {
         ItemStack[] snapshot = new ItemStack[container.getCapacity()];
         for (short i = 0; i < container.getCapacity(); ++i) {
             ItemStack stack = container.getItemStack(i);
-            if (!ItemStack.isEmpty(stack) && (stack.getItem() == null || stack.getItem().dropsOnDeath())) {
+            if (!ItemStack.isEmpty(stack) && !BodyManager.isBuilderTool(stack)) {
                 snapshot[i] = stack;
             } else {
                 snapshot[i] = ItemStack.EMPTY;

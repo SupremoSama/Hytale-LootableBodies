@@ -199,7 +199,7 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
 
         for (short i = 0; i < container.getCapacity(); ++i) {
             ItemStack stack = container.getItemStack(i);
-            if (ItemStack.isEmpty(stack) || !stack.getItem().dropsOnDeath()) continue;
+            if (ItemStack.isEmpty(stack) || BodyManager.isBuilderTool(stack)) continue;
 
             bodyItems[i] = stack;
             itemsToDrop.add(stack);
