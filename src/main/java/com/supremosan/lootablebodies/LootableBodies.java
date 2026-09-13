@@ -4,6 +4,8 @@ import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
+import com.hypixel.hytale.protocol.GameMode;
+import com.hypixel.hytale.server.core.asset.type.gameplay.DeathConfig;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.event.events.player.PlayerDisconnectEvent;
 import com.hypixel.hytale.server.core.event.events.player.PlayerReadyEvent;
@@ -33,7 +35,27 @@ public class LootableBodies extends JavaPlugin {
     public static ComponentType<EntityStore, BodyComponent> bodyComponentType;
 
     public static boolean isBodySpawnAllowed(World world) {
-        return world != null && world.isAlive() && world.getWorldConfig().isTicking();
+        if (world == null || !world.isAlive()) {
+            return false;
+        }
+
+        if (!world.getWorldConfig().isTicking() || !world.getWorldConfig().isSpawningNPC()) {
+            return false;
+        }
+
+        // Protected worlds where block placement is disallowed (e.g. Hub / Spawn / Safe zones)
+        if (world.getGameplayConfig() != null && world.getGameplayConfig().getWorldConfig() != null) {
+            if (!world.getGameplayConfig().getWorldConfig().isBlockPlacementAllowed()) {
+                return false;
+            }
+        }
+
+        // Protected worlds where item loss on death is disabled (keep inventory / safe worlds)
+        if (world.getDeathConfig() != null && world.getDeathConfig().getItemsLossMode() == DeathConfig.ItemsLossMode.NONE) {
+            return false;
+        }
+
+        return true;
     }
 
     public LootableBodies(JavaPluginInit init) {
@@ -64,6 +86,11 @@ public class LootableBodies extends JavaPlugin {
 
             world.execute(() -> {
                 if (!ref.isValid()) {
+                    return;
+                }
+
+                Player player = store.getComponent(ref, Player.getComponentType());
+                if (player != null && player.getGameMode() == GameMode.Creative) {
                     return;
                 }
 
@@ -112,13 +139,12 @@ public class LootableBodies extends JavaPlugin {
             PlayerRef playerRef = store.getComponent(ref, PlayerRef.getComponentType());
             if (playerRef == null) return;
 
+            World world = player.getWorld();
+            if (world == null || !isBodySpawnAllowed(world)) return;
+
             UUID uuid = playerRef.getUuid();
             if (!BodyManager.hasBody(uuid, store)) return;
 
-            World world = player.getWorld();
-            if (world == null) return;
-
-            if (!world.isAlive()) return;
             world.execute(() -> {
                 if (!ref.isValid()) return;
                 LOGGER.atInfo().log("[LootableBodies] PlayerReadyEvent: syncing body to player %s", uuid);

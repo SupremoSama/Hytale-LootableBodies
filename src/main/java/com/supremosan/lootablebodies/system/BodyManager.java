@@ -23,6 +23,7 @@ import com.hypixel.hytale.server.core.modules.entity.component.TransformComponen
 import com.hypixel.hytale.server.core.modules.entity.item.ItemComponent;
 import com.hypixel.hytale.server.core.modules.entity.player.PlayerSkinComponent;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
+import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.NPCPlugin;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
@@ -60,6 +61,11 @@ public class BodyManager {
             BodySource source
     ) {
         if (ref == null || !ref.isValid()) {
+            return;
+        }
+
+        World world = store.getExternalData().getWorld();
+        if (!LootableBodies.isBodySpawnAllowed(world)) {
             return;
         }
 
@@ -259,6 +265,11 @@ public class BodyManager {
 
     public static void syncBodyToPlayer(UUID uuid, Store<EntityStore> playerStore, Ref<EntityStore> playerRef) {
         if (uuid == null || playerStore == null || playerRef == null || !playerRef.isValid()) {
+            return;
+        }
+
+        World world = playerStore.getExternalData().getWorld();
+        if (!LootableBodies.isBodySpawnAllowed(world)) {
             return;
         }
 
