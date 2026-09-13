@@ -463,16 +463,21 @@ public class BodyManager {
             return;
         }
 
-        @Nullable
-        ComponentType<EntityStore, NPCEntity> npcComponentType = NPCEntity.getComponentType();
-        if (npcComponentType != null) {
-            NPCEntity npcEntity = bodyStore.getComponent(bodyRef, npcComponentType);
-            if (npcEntity != null) {
-                npcEntity.remove();
+        try {
+            @Nullable
+            ComponentType<EntityStore, NPCEntity> npcComponentType = NPCEntity.getComponentType();
+            if (npcComponentType != null) {
+                NPCEntity npcEntity = bodyStore.getComponent(bodyRef, npcComponentType);
+                if (npcEntity != null) {
+                    npcEntity.remove();
+                }
             }
-        }
 
-        bodyStore.removeEntity(bodyRef, RemoveReason.REMOVE);
+            if (bodyRef.isValid()) {
+                bodyStore.removeEntity(bodyRef, RemoveReason.REMOVE);
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     public static boolean hasBody(UUID uuid, Store<EntityStore> store) {
