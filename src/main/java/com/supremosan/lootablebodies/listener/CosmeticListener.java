@@ -14,6 +14,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +62,8 @@ public final class CosmeticListener {
 
         if (extras != null) attachments.addAll(extras.values());
 
+        Map<String, ModelAsset.AnimationSet> animMap = createSleepingAnimationMap(base.getAnimationSetMap());
+
         return new Model(
                 modelName,
                 base.getScale(),
@@ -75,7 +78,7 @@ public final class CosmeticListener {
                 base.getCrouchOffset(),
                 base.getSittingOffset(),
                 base.getSleepingOffset(),
-                base.getAnimationSetMap(),
+                animMap,
                 base.getCamera(),
                 base.getLight(),
                 base.getParticles(),
@@ -85,6 +88,37 @@ public final class CosmeticListener {
                 base.getPhobia(),
                 base.getPhobiaModelAssetId()
         );
+    }
+
+    public static Map<String, ModelAsset.AnimationSet> createSleepingAnimationMap(Map<String, ModelAsset.AnimationSet> sourceMap) {
+        Map<String, ModelAsset.AnimationSet> map = sourceMap != null ? new HashMap<>(sourceMap) : new HashMap<>();
+        ModelAsset.AnimationSet sleepSet = map.get("Sleep");
+        if (sleepSet == null) {
+            sleepSet = map.get("Sleep2");
+        }
+
+        if (sleepSet != null && sleepSet.getAnimations() != null && sleepSet.getAnimations().length > 0) {
+            ModelAsset.Animation[] sourceAnims = sleepSet.getAnimations();
+            ModelAsset.Animation[] loopingAnims = new ModelAsset.Animation[sourceAnims.length];
+            for (int i = 0; i < sourceAnims.length; i++) {
+                ModelAsset.Animation src = sourceAnims[i];
+                loopingAnims[i] = new ModelAsset.Animation(
+                        "Sleep",
+                        src.getAnimation(),
+                        src.getSpeed() > 0 ? src.getSpeed() : 1.0f,
+                        0.2f,
+                        true,
+                        1.0f,
+                        new int[0],
+                        src.getSoundEventId()
+                );
+            }
+            ModelAsset.AnimationSet loopingSleepSet = new ModelAsset.AnimationSet(loopingAnims, sleepSet.getNextAnimationDelay());
+            map.put("Idle", loopingSleepSet);
+            map.put("Sleep", loopingSleepSet);
+            map.put("Sleep2", loopingSleepSet);
+        }
+        return map;
     }
 
     private static void removeRegisteredSkinAttachments(List<ModelAttachment> attachments, CosmeticRegistry registry) {

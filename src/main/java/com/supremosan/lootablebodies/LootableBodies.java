@@ -88,13 +88,18 @@ public class LootableBodies extends JavaPlugin {
                 ItemStack[] abilityItems = snapshotContainer(abilityComp != null ? abilityComp.getInventory() : null);
                 ItemStack[] runeBagItems = snapshotContainer(runeBagComp != null ? runeBagComp.getInventory() : null);
 
-                boolean hasAny = hasItems(storageItems) || hasItems(hotbarItems) || hasItems(backpackItems)
-                        || hasItems(armorItems) || hasItems(utilityItems) || hasItems(toolItems)
-                        || hasItems(abilityItems) || hasItems(runeBagItems);
-                if (!hasAny) return;
-
                 BodyManager.spawnBody(store, ref, storageItems, hotbarItems, backpackItems, armorItems,
                         utilityItems, toolItems, abilityItems, runeBagItems, BodySource.LOGOUT);
+
+                // Rust inventory sync: clear player inventory while sleeper holds items in the world
+                BodyManager.clearSection(store, ref, InventoryComponent.Storage.getComponentType());
+                BodyManager.clearSection(store, ref, InventoryComponent.Hotbar.getComponentType());
+                BodyManager.clearSection(store, ref, InventoryComponent.Backpack.getComponentType());
+                BodyManager.clearSection(store, ref, InventoryComponent.Armor.getComponentType());
+                BodyManager.clearSection(store, ref, InventoryComponent.Utility.getComponentType());
+                BodyManager.clearSection(store, ref, InventoryComponent.Tool.getComponentType());
+                BodyManager.clearSection(store, ref, InventoryComponent.AbilitySlots.getComponentType());
+                BodyManager.clearSection(store, ref, InventoryComponent.RuneBag.getComponentType());
             });
         });
 

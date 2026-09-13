@@ -1,7 +1,7 @@
 {
   "Type": "Generic",
   "NameTranslationKey": "server.npcRoles.Body_Entity.name",
-  "StartState": "Sleep2",
+  "StartState": "Sleep",
   "DefaultNPCAttitude": "Ignore",
   "DefaultPlayerAttitude": "Neutral",
   "Appearance": "Player",
@@ -26,7 +26,7 @@
         {
           "Sensor": {
             "Type": "State",
-            "State": "Sleep2"
+            "State": "Sleep"
           },
           "Instructions": [
             {
@@ -37,7 +37,7 @@
                 {
                   "Type": "PlayAnimation",
                   "Slot": "Status",
-                  "Animation": "Sleep2"
+                  "Animation": "Sleep"
                 }
               ]
             }
@@ -59,7 +59,7 @@
                     "Type": "Sequence",
                     "Actions": [
                       { "Type": "ReleaseTarget" },
-                      { "Type": "State", "State": "Sleep2" }
+                      { "Type": "State", "State": "Sleep" }
                     ]
                   }
                 }

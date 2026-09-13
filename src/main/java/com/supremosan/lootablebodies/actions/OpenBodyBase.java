@@ -14,6 +14,7 @@ import com.hypixel.hytale.server.npc.corecomponents.builders.BuilderActionBase;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hypixel.hytale.server.npc.instructions.ExecutionSupport;
 import com.hypixel.hytale.server.npc.sensorinfo.InfoProvider;
+import com.supremosan.lootablebodies.system.BodyManager;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -60,8 +61,8 @@ public class OpenBodyBase extends ActionBase {
 
         BodyWindow bodyWindow = new BodyWindow(storage, npcTransform.getPosition());
         bodyWindow.registerCloseEvent((_) -> {
-            if (storage.isEmpty()) {
-                npcEntity.remove();
+            if (ref.isValid() && storage.isEmpty()) {
+                BodyManager.forceRemoveBody(ref, npcStore);
             }
         });
 
