@@ -119,22 +119,30 @@ public final class CosmeticListener {
         map.put("FluidIdlePassive", silentPassive);
 
         if (source == BodySource.DEATH) {
-            // Corpse: Freeze on the final frame of the Death collapse animation (motionless, eyes closed)
-            ModelAsset.Animation corpseAnim = new ModelAsset.Animation(
-                    "Death_Corpse_Hold",
-                    "Characters/Animations/Damage/Default/Death_Corpse_Hold.blockyanim",
-                    1.0f,
+            ModelAsset.AnimationSet deathSet = map.get("Death");
+            String animPath = (deathSet != null && deathSet.getAnimations() != null && deathSet.getAnimations().length > 0)
+                    ? deathSet.getAnimations()[0].getAnimation()
+                    : "Characters/Animations/Damage/Default/Death.blockyanim";
+            float speed = (deathSet != null && deathSet.getAnimations() != null && deathSet.getAnimations().length > 0 && deathSet.getAnimations()[0].getSpeed() > 0)
+                    ? deathSet.getAnimations()[0].getSpeed()
+                    : 1.0f;
+
+            ModelAsset.Animation deathAnim = new ModelAsset.Animation(
+                    "Death",
+                    animPath,
+                    speed,
                     0.2f,
-                    true,
+                    false,
                     1.0f,
                     new int[0],
                     null
             );
             ModelAsset.AnimationSet corpseSet = new ModelAsset.AnimationSet(
-                    new ModelAsset.Animation[]{corpseAnim},
+                    new ModelAsset.Animation[]{deathAnim},
                     null
             );
             map.put("Idle", corpseSet);
+            map.put("Death", corpseSet);
             map.put("Sleep", corpseSet);
             map.put("Sleep2", corpseSet);
         } else {
