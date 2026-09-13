@@ -43,7 +43,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import com.hypixel.hytale.logger.HytaleLogger;
+import java.util.logging.Level;
+
 public class BodyManager {
+    private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
     private static final String BODY_DEATH_ROLE = "Body_Death_Entity_Role";
     private static final String BODY_LOGOUT_ROLE = "Body_Logout_Entity_Role";
     private static final float DEFAULT_SCALE = 1.0F;
@@ -93,11 +97,13 @@ public class BodyManager {
         String roleName = source == BodySource.DEATH ? BODY_DEATH_ROLE : BODY_LOGOUT_ROLE;
         int roleIndex = NPCPlugin.get().getIndex(roleName);
         if (roleIndex < 0) {
+            LOGGER.at(Level.SEVERE).log("[LootableBodies] Cannot spawn body: NPC role '%s' not registered!", roleName);
             return;
         }
 
         ModelAsset playerModelAsset = ModelAsset.getAssetMap().getAsset("Player");
         if (playerModelAsset == null) {
+            LOGGER.at(Level.SEVERE).log("[LootableBodies] Cannot spawn body: ModelAsset 'Player' not found!");
             return;
         }
 
@@ -138,7 +144,8 @@ public class BodyManager {
                     scaled.getPhobia(),
                     scaled.getPhobiaModelAssetId()
             );
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            LOGGER.at(Level.SEVERE).withCause(e).log("[LootableBodies] Cannot spawn body: failed to build model!");
             return;
         }
 
@@ -194,6 +201,7 @@ public class BodyManager {
         );
 
         if (pair == null) {
+            LOGGER.at(Level.SEVERE).log("[LootableBodies] NPCPlugin.spawnEntity returned null for role '%s'!", roleName);
             return;
         }
 

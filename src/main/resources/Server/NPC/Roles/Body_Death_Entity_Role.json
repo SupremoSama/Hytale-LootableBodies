@@ -59,7 +59,7 @@
                     "Type": "Sequence",
                     "Actions": [
                       { "Type": "ReleaseTarget" },
-                      { "Type": "State", "State": "Sleep" }
+                      { "Type": "State", "State": "Death" }
                     ]
                   }
                 }
