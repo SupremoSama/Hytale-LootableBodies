@@ -32,14 +32,7 @@
             {
               "Sensor": { "Type": "Any" },
               "BodyMotion": { "Type": "Nothing" },
-              "HeadMotion": { "Type": "Nothing" },
-              "Actions": [
-                {
-                  "Type": "PlayAnimation",
-                  "Slot": "Status",
-                  "Animation": "Death"
-                }
-              ]
+              "HeadMotion": { "Type": "Nothing" }
             }
           ]
         },
