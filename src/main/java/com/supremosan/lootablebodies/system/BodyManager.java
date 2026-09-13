@@ -37,7 +37,9 @@ import org.joml.Vector3d;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import com.hypixel.hytale.protocol.Cosmetic;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -119,30 +121,13 @@ public class BodyManager {
         Model newModel;
         try {
             Model scaled = Model.createScaledModel(playerModelAsset, scale);
-            Map<String, ModelAsset.AnimationSet> animMap = CosmeticListener.createBodyAnimationMap(scaled.getAnimationSetMap(), source);
-            newModel = new Model(
-                    scaled.getModelAssetId(),
-                    scaled.getScale(),
-                    scaled.getRandomAttachmentIds(),
-                    scaled.getAttachments(),
-                    scaled.getBoundingBox(),
-                    scaled.getModel(),
-                    scaled.getTexture(),
-                    scaled.getGradientSet(),
-                    scaled.getGradientId(),
-                    scaled.getEyeHeight(),
-                    scaled.getCrouchOffset(),
-                    scaled.getSittingOffset(),
-                    scaled.getSleepingOffset(),
-                    animMap,
-                    scaled.getCamera(),
-                    scaled.getLight(),
-                    scaled.getParticles(),
-                    scaled.getTrails(),
-                    scaled.getPhysicsValues(),
-                    scaled.getDetailBoxes(),
-                    scaled.getPhobia(),
-                    scaled.getPhobiaModelAssetId()
+            newModel = CosmeticListener.buildCosmeticModel(
+                    scaled,
+                    playerSkinComponent.getPlayerSkin(),
+                    EnumSet.noneOf(Cosmetic.class),
+                    "Player",
+                    null,
+                    source
             );
         } catch (Exception e) {
             LOGGER.at(Level.SEVERE).withCause(e).log("[LootableBodies] Cannot spawn body: failed to build model!");

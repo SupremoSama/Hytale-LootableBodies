@@ -10,8 +10,10 @@ import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.protocol.Cosmetic;
 import com.hypixel.hytale.protocol.PlayerSkin;
 import com.hypixel.hytale.server.core.asset.type.model.config.Model;
+import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.modules.entity.component.ModelComponent;
 import com.hypixel.hytale.server.core.modules.entity.player.PlayerSkinComponent;
+import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.supremosan.lootablebodies.components.BodyComponent;
 import com.supremosan.lootablebodies.listener.CosmeticListener;
@@ -27,6 +29,11 @@ public class BodySkinReapplySystem extends HolderSystem<EntityStore> {
 
     @Override
     public void onEntityAdd(@Nonnull Holder<EntityStore> holder, @Nonnull AddReason addReason, @Nonnull Store<EntityStore> store) {
+        // Strictly ignore player entities - cosmetic handling only applies to NPC corpses
+        if (holder.getComponent(Player.getComponentType()) != null || holder.getComponent(PlayerRef.getComponentType()) != null) {
+            return;
+        }
+
         BodyComponent bodyComponent = holder.getComponent(BodyComponent.getComponentType());
         if (bodyComponent == null) return;
 
@@ -50,11 +57,12 @@ public class BodySkinReapplySystem extends HolderSystem<EntityStore> {
         }
 
         try {
+            String modelAssetId = baseModel.getModelAssetId() != null ? baseModel.getModelAssetId() : "Player";
             Model cosmeticModel = CosmeticListener.buildCosmeticModel(
                     baseModel,
                     skin,
                     EnumSet.noneOf(Cosmetic.class),
-                    "Body_CustomModel",
+                    modelAssetId,
                     null,
                     bodyComponent.bodySource
             );
