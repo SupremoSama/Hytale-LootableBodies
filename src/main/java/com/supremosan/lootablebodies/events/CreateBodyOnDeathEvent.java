@@ -167,7 +167,10 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
                 break;
         }
 
-        component.setItemsLossMode(ItemsLossMode.NONE);
+        // Do not set itemsLossMode to NONE; setting it to NONE causes Hytale's
+        // death screen (RespawnPage) to display "A perda de itens está desativada neste mundo!"
+        // while simultaneously displaying the lost items list below it.
+        // Zero out percentage loss so vanilla DropPlayerDeathItems does not double-drop.
         component.setItemsAmountLossPercentage(0.0D);
         component.setItemsDurabilityLossPercentage(0.0D);
 
