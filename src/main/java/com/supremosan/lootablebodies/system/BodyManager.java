@@ -113,7 +113,7 @@ public class BodyManager {
         Model newModel;
         try {
             Model scaled = Model.createScaledModel(playerModelAsset, scale);
-            Map<String, ModelAsset.AnimationSet> animMap = CosmeticListener.createSleepingAnimationMap(scaled.getAnimationSetMap());
+            Map<String, ModelAsset.AnimationSet> animMap = CosmeticListener.createBodyAnimationMap(scaled.getAnimationSetMap(), source);
             newModel = new Model(
                     scaled.getModelAssetId(),
                     scaled.getScale(),
@@ -218,8 +218,9 @@ public class BodyManager {
         movementStates.getSentMovementStates().sleeping = true;
         movementStates.getSentMovementStates().idle = true;
 
+        String animToPlay = source == BodySource.DEATH ? "Death" : "Sleep2";
         try {
-            AnimationUtils.playAnimation(newEntityRef, AnimationSlot.Status, "Sleep", newEntityStore);
+            AnimationUtils.playAnimation(newEntityRef, AnimationSlot.Status, animToPlay, newEntityStore);
         } catch (Exception ignored) {
         }
     }

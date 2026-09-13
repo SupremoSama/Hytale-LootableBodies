@@ -37,7 +37,7 @@
                 {
                   "Type": "PlayAnimation",
                   "Slot": "Status",
-                  "Animation": "Sleep"
+                  "Animation": "Sleep2"
                 }
               ]
             }

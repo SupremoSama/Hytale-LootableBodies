@@ -55,7 +55,8 @@ public class BodySkinReapplySystem extends HolderSystem<EntityStore> {
                     skin,
                     EnumSet.noneOf(Cosmetic.class),
                     "Body_CustomModel",
-                    null
+                    null,
+                    bodyComponent.bodySource
             );
             holder.putComponent(ModelComponent.getComponentType(), new ModelComponent(cosmeticModel));
         } catch (Exception e) {

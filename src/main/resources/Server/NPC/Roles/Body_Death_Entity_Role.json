@@ -1,7 +1,7 @@
 {
   "Type": "Generic",
   "NameTranslationKey": "server.npcRoles.Body_Entity.name",
-  "StartState": "Sleep",
+  "StartState": "Death",
   "DefaultNPCAttitude": "Ignore",
   "DefaultPlayerAttitude": "Neutral",
   "Appearance": "Player",
@@ -26,7 +26,7 @@
         {
           "Sensor": {
             "Type": "State",
-            "State": "Sleep"
+            "State": "Death"
           },
           "Instructions": [
             {
@@ -37,7 +37,7 @@
                 {
                   "Type": "PlayAnimation",
                   "Slot": "Status",
-                  "Animation": "Sleep"
+                  "Animation": "Death"
                 }
               ]
             }

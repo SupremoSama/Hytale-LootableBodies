@@ -8,6 +8,7 @@ import com.hypixel.hytale.server.core.asset.type.model.config.ModelAttachment;
 import com.hypixel.hytale.server.core.cosmetics.CosmeticRegistry;
 import com.hypixel.hytale.server.core.cosmetics.CosmeticsModule;
 import com.hypixel.hytale.server.core.cosmetics.PlayerSkinPart;
+import com.supremosan.lootablebodies.components.BodySource;
 import com.supremosan.lootablebodies.cosmetic.CosmeticUtils;
 
 import javax.annotation.Nonnull;
@@ -31,6 +32,16 @@ public final class CosmeticListener {
                                            @Nonnull Set<Cosmetic> hiddenCosmetics,
                                            @Nonnull String modelName,
                                            @Nullable Map<String, ModelAttachment> extras) {
+        return buildCosmeticModel(base, skin, hiddenCosmetics, modelName, extras, BodySource.LOGOUT);
+    }
+
+    @Nonnull
+    public static Model buildCosmeticModel(@Nonnull Model base,
+                                           @Nonnull PlayerSkin skin,
+                                           @Nonnull Set<Cosmetic> hiddenCosmetics,
+                                           @Nonnull String modelName,
+                                           @Nullable Map<String, ModelAttachment> extras,
+                                           @Nullable BodySource source) {
         CosmeticRegistry registry = CosmeticsModule.get() != null ? CosmeticsModule.get().getRegistry() : null;
         if (registry == null) {
             return base;
@@ -62,7 +73,7 @@ public final class CosmeticListener {
 
         if (extras != null) attachments.addAll(extras.values());
 
-        Map<String, ModelAsset.AnimationSet> animMap = createSleepingAnimationMap(base.getAnimationSetMap());
+        Map<String, ModelAsset.AnimationSet> animMap = createBodyAnimationMap(base.getAnimationSetMap(), source);
 
         return new Model(
                 modelName,
@@ -91,33 +102,77 @@ public final class CosmeticListener {
     }
 
     public static Map<String, ModelAsset.AnimationSet> createSleepingAnimationMap(Map<String, ModelAsset.AnimationSet> sourceMap) {
+        return createBodyAnimationMap(sourceMap, BodySource.LOGOUT);
+    }
+
+    public static Map<String, ModelAsset.AnimationSet> createBodyAnimationMap(
+            Map<String, ModelAsset.AnimationSet> sourceMap,
+            @Nullable BodySource source
+    ) {
         Map<String, ModelAsset.AnimationSet> map = sourceMap != null ? new HashMap<>(sourceMap) : new HashMap<>();
-        ModelAsset.AnimationSet sleepSet = map.get("Sleep");
-        if (sleepSet == null) {
-            sleepSet = map.get("Sleep2");
+
+        if (source == BodySource.DEATH) {
+            ModelAsset.AnimationSet deathSet = map.get("Death");
+            if (deathSet != null && deathSet.getAnimations() != null && deathSet.getAnimations().length > 0) {
+                ModelAsset.Animation[] sourceAnims = deathSet.getAnimations();
+                ModelAsset.Animation[] targetAnims = new ModelAsset.Animation[sourceAnims.length];
+                for (int i = 0; i < sourceAnims.length; i++) {
+                    ModelAsset.Animation src = sourceAnims[i];
+                    targetAnims[i] = new ModelAsset.Animation(
+                            "Death",
+                            src.getAnimation(),
+                            src.getSpeed() > 0 ? src.getSpeed() : 1.0f,
+                            0.2f,
+                            false,
+                            1.0f,
+                            new int[0],
+                            null
+                    );
+                }
+                ModelAsset.AnimationSet targetSet = new ModelAsset.AnimationSet(targetAnims, deathSet.getNextAnimationDelay());
+                map.put("Idle", targetSet);
+                map.put("Death", targetSet);
+                map.put("Sleep", targetSet);
+                map.put("Sleep2", targetSet);
+                map.put("IdlePassive", targetSet);
+                map.put("FlyIdlePassive", targetSet);
+                map.put("SwimIdlePassive", targetSet);
+                map.put("FluidIdlePassive", targetSet);
+            }
+        } else {
+            // BodySource.LOGOUT: Sleep2 (curled on side, looping, eyes closed)
+            ModelAsset.AnimationSet sleepSet = map.get("Sleep2");
+            if (sleepSet == null) {
+                sleepSet = map.get("Sleep");
+            }
+
+            if (sleepSet != null && sleepSet.getAnimations() != null && sleepSet.getAnimations().length > 0) {
+                ModelAsset.Animation[] sourceAnims = sleepSet.getAnimations();
+                ModelAsset.Animation[] targetAnims = new ModelAsset.Animation[sourceAnims.length];
+                for (int i = 0; i < sourceAnims.length; i++) {
+                    ModelAsset.Animation src = sourceAnims[i];
+                    targetAnims[i] = new ModelAsset.Animation(
+                            "Sleep2",
+                            src.getAnimation(),
+                            src.getSpeed() > 0 ? src.getSpeed() : 1.0f,
+                            0.2f,
+                            true,
+                            1.0f,
+                            new int[0],
+                            null
+                    );
+                }
+                ModelAsset.AnimationSet targetSet = new ModelAsset.AnimationSet(targetAnims, sleepSet.getNextAnimationDelay());
+                map.put("Idle", targetSet);
+                map.put("Sleep", targetSet);
+                map.put("Sleep2", targetSet);
+                map.put("IdlePassive", targetSet);
+                map.put("FlyIdlePassive", targetSet);
+                map.put("SwimIdlePassive", targetSet);
+                map.put("FluidIdlePassive", targetSet);
+            }
         }
 
-        if (sleepSet != null && sleepSet.getAnimations() != null && sleepSet.getAnimations().length > 0) {
-            ModelAsset.Animation[] sourceAnims = sleepSet.getAnimations();
-            ModelAsset.Animation[] loopingAnims = new ModelAsset.Animation[sourceAnims.length];
-            for (int i = 0; i < sourceAnims.length; i++) {
-                ModelAsset.Animation src = sourceAnims[i];
-                loopingAnims[i] = new ModelAsset.Animation(
-                        "Sleep",
-                        src.getAnimation(),
-                        src.getSpeed() > 0 ? src.getSpeed() : 1.0f,
-                        0.2f,
-                        true,
-                        1.0f,
-                        new int[0],
-                        src.getSoundEventId()
-                );
-            }
-            ModelAsset.AnimationSet loopingSleepSet = new ModelAsset.AnimationSet(loopingAnims, sleepSet.getNextAnimationDelay());
-            map.put("Idle", loopingSleepSet);
-            map.put("Sleep", loopingSleepSet);
-            map.put("Sleep2", loopingSleepSet);
-        }
         return map;
     }
 
