@@ -40,6 +40,12 @@ public class BodyComponent implements Component<EntityStore> {
     @Nonnull
     private ItemStack[] armorItems;
 
+    @Nonnull
+    private ItemStack[] utilityItems;
+
+    @Nonnull
+    private ItemStack[] toolItems;
+
     public BodyComponent(@Nonnull String playerSkinSerialized, @Nonnull String ownerUuidSerialized, @Nonnull String bodySourceSerialized) {
         this.playerSkinSerialized = playerSkinSerialized;
         this.ownerUuidSerialized = ownerUuidSerialized;
@@ -48,6 +54,8 @@ public class BodyComponent implements Component<EntityStore> {
         this.hotbarItems = new ItemStack[0];
         this.backpackItems = new ItemStack[0];
         this.armorItems = new ItemStack[0];
+        this.utilityItems = new ItemStack[0];
+        this.toolItems = new ItemStack[0];
     }
 
     public BodyComponent() {
@@ -58,6 +66,8 @@ public class BodyComponent implements Component<EntityStore> {
         this.hotbarItems = new ItemStack[0];
         this.backpackItems = new ItemStack[0];
         this.armorItems = new ItemStack[0];
+        this.utilityItems = new ItemStack[0];
+        this.toolItems = new ItemStack[0];
     }
 
     public static ComponentType<EntityStore, BodyComponent> getComponentType() {
@@ -68,11 +78,15 @@ public class BodyComponent implements Component<EntityStore> {
     public ItemStack[] getHotbarItems() { return hotbarItems; }
     public ItemStack[] getBackpackItems() { return backpackItems; }
     public ItemStack[] getArmorItems() { return armorItems; }
+    public ItemStack[] getUtilityItems() { return utilityItems; }
+    public ItemStack[] getToolItems() { return toolItems; }
 
     public void setStorageItems(@Nonnull ItemStack[] items) { this.storageItems = items; }
     public void setHotbarItems(@Nonnull ItemStack[] items) { this.hotbarItems = items; }
     public void setBackpackItems(@Nonnull ItemStack[] items) { this.backpackItems = items; }
     public void setArmorItems(@Nonnull ItemStack[] items) { this.armorItems = items; }
+    public void setUtilityItems(@Nonnull ItemStack[] items) { this.utilityItems = items; }
+    public void setToolItems(@Nonnull ItemStack[] items) { this.toolItems = items; }
 
     public String toString() {
         return this.playerSkinSerialized;
@@ -120,6 +134,8 @@ public class BodyComponent implements Component<EntityStore> {
         copy.hotbarItems = this.hotbarItems;
         copy.backpackItems = this.backpackItems;
         copy.armorItems = this.armorItems;
+        copy.utilityItems = this.utilityItems;
+        copy.toolItems = this.toolItems;
         return copy;
     }
 
@@ -175,6 +191,20 @@ public class BodyComponent implements Component<EntityStore> {
                         e -> e.armorItems
                 )
                 .documentation("Snapshot of the player armor inventory at body creation")
+                .add()
+                .append(
+                        new KeyedCodec<>("UtilityItems", itemArrayCodec),
+                        (e, v) -> e.utilityItems = v != null ? v : new ItemStack[0],
+                        e -> e.utilityItems
+                )
+                .documentation("Snapshot of the player utility inventory at body creation")
+                .add()
+                .append(
+                        new KeyedCodec<>("ToolItems", itemArrayCodec),
+                        (e, v) -> e.toolItems = v != null ? v : new ItemStack[0],
+                        e -> e.toolItems
+                )
+                .documentation("Snapshot of the player tool inventory at body creation")
                 .add()
                 .build();
     }

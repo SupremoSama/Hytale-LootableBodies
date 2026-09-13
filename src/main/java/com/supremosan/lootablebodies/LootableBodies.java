@@ -33,7 +33,7 @@ public class LootableBodies extends JavaPlugin {
     public static ComponentType<EntityStore, BodyComponent> bodyComponentType;
 
     public static boolean isBodySpawnAllowed(World world) {
-        return !world.getWorldConfig().isBlockTicking();
+        return world != null && world.isAlive() && world.getWorldConfig().isTicking();
     }
 
     public LootableBodies(JavaPluginInit init) {
@@ -53,20 +53,26 @@ public class LootableBodies extends JavaPlugin {
         this.getEventRegistry().registerGlobal(PlayerDisconnectEvent.class, event -> {
             PlayerRef playerRef = event.getPlayerRef();
             Ref<EntityStore> ref = playerRef.getReference();
-            if (ref == null) return;
+            if (ref == null || !ref.isValid()) return;
 
             Store<EntityStore> store = ref.getStore();
             World world = store.getExternalData().getWorld();
 
-            if (isBodySpawnAllowed(world)) {
+            if (!isBodySpawnAllowed(world)) {
                 return;
             }
 
             world.execute(() -> {
+                if (!ref.isValid()) {
+                    return;
+                }
+
                 InventoryComponent.Armor armorComp = store.getComponent(ref, InventoryComponent.Armor.getComponentType());
                 InventoryComponent.Storage storageComp = store.getComponent(ref, InventoryComponent.Storage.getComponentType());
                 InventoryComponent.Hotbar hotbarComp = store.getComponent(ref, InventoryComponent.Hotbar.getComponentType());
                 InventoryComponent.Backpack backpackComp = store.getComponent(ref, InventoryComponent.Backpack.getComponentType());
+                InventoryComponent.Utility utilityComp = store.getComponent(ref, InventoryComponent.Utility.getComponentType());
+                InventoryComponent.Tool toolComp = store.getComponent(ref, InventoryComponent.Tool.getComponentType());
                 TransformComponent transform = store.getComponent(ref, TransformComponent.getComponentType());
 
                 if (transform == null) return;
@@ -75,18 +81,22 @@ public class LootableBodies extends JavaPlugin {
                 ItemStack[] hotbarItems = snapshotContainer(hotbarComp != null ? hotbarComp.getInventory() : null);
                 ItemStack[] backpackItems = snapshotContainer(backpackComp != null ? backpackComp.getInventory() : null);
                 ItemStack[] armorItems = snapshotContainer(armorComp != null ? armorComp.getInventory() : null);
+                ItemStack[] utilityItems = snapshotContainer(utilityComp != null ? utilityComp.getInventory() : null);
+                ItemStack[] toolItems = snapshotContainer(toolComp != null ? toolComp.getInventory() : null);
 
-                boolean hasAny = hasItems(storageItems) || hasItems(hotbarItems) || hasItems(backpackItems) || hasItems(armorItems);
+                boolean hasAny = hasItems(storageItems) || hasItems(hotbarItems) || hasItems(backpackItems)
+                        || hasItems(armorItems) || hasItems(utilityItems) || hasItems(toolItems);
                 if (!hasAny) return;
 
-                BodyManager.spawnBody(store, ref, storageItems, hotbarItems, backpackItems, armorItems, BodySource.LOGOUT);
+                BodyManager.spawnBody(store, ref, storageItems, hotbarItems, backpackItems, armorItems,
+                        utilityItems, toolItems, BodySource.LOGOUT);
             });
         });
 
         this.getEventRegistry().registerGlobal(PlayerReadyEvent.class, event -> {
             Player player = event.getPlayer();
             Ref<EntityStore> ref = player.getReference();
-            if (ref == null) return;
+            if (ref == null || !ref.isValid()) return;
 
             Store<EntityStore> store = ref.getStore();
             PlayerRef playerRef = store.getComponent(ref, PlayerRef.getComponentType());
@@ -100,6 +110,7 @@ public class LootableBodies extends JavaPlugin {
 
             if (!world.isAlive()) return;
             world.execute(() -> {
+                if (!ref.isValid()) return;
                 LOGGER.atInfo().log("[LootableBodies] PlayerReadyEvent: syncing body to player %s", uuid);
                 BodyManager.syncBodyToPlayer(uuid, store, ref);
             });

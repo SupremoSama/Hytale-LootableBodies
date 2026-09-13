@@ -18,64 +18,136 @@ public final class CosmeticUtils {
     @Nonnull
     public static ModelAttachment fromPlayerSkinPart(@Nonnull PlayerSkinPart part,
                                                      @Nonnull String gradientId) {
-        return new ModelAttachment(
+        return attachment(
                 part.getModel(),
                 part.getGreyscaleTexture(),
                 part.getGradientSet(),
-                gradientId,
-                DEFAULT_SCALE
+                gradientId
         );
     }
 
     @Nonnull
     public static ModelAttachment resolveAttachment(@Nonnull PlayerSkinPart part,
-                                                    @Nonnull String[] parts,
+                                                    @Nullable String textureId,
+                                                    @Nullable String variantId,
                                                     @Nonnull String bodyGradientId) {
-        String wardrobeVariantId = parts.length > 1 ? parts[1] : null;
-        String wardrobeOptionId = parts.length > 2 ? parts[2] : null;
+        String fallbackGradientId = fallback(textureId, bodyGradientId);
+        Map<String, PlayerSkinPart.Variant> variants = part.getVariants();
 
-        PlayerSkinPart.Variant variant = get(part.getVariants(), wardrobeOptionId);
-        if (variant != null) {
-            if (variant.getTextures() != null) {
-                PlayerSkinPartTexture tex = get(variant.getTextures(), wardrobeVariantId);
-                if (tex != null) {
-                    return new ModelAttachment(
-                            variant.getModel(),
-                            tex.getTexture(),
-                            null,
-                            null,
-                            DEFAULT_SCALE
-                    );
+        if (hasEntries(variants)) {
+            PlayerSkinPart.Variant variant = get(variants, variantId);
+            if (variant == null) {
+                return fromPlayerSkinPart(part, fallbackGradientId);
+            }
+
+            return resolveVariantAttachment(part, variant, textureId, fallbackGradientId);
+        }
+
+        return resolvePartAttachment(part, textureId, fallbackGradientId);
+    }
+
+    @Nonnull
+    public static String[] splitId(@Nonnull String rawId) {
+        return rawId.split("\\.", -1);
+    }
+
+    @Nullable
+    public static String part(@Nonnull String[] parts, int index) {
+        if (index < 0 || index >= parts.length) {
+            return null;
+        }
+
+        String value = parts[index];
+        return value == null || value.isEmpty() ? null : value;
+    }
+
+    @Nullable
+    public static String assetId(@Nonnull String rawId) {
+        return part(splitId(rawId), 0);
+    }
+
+    @Nonnull
+    public static String fallback(@Nullable String value, @Nonnull String fallback) {
+        return value == null || value.isEmpty() ? fallback : value;
+    }
+
+    @Nonnull
+    private static ModelAttachment resolveVariantAttachment(@Nonnull PlayerSkinPart part,
+                                                            @Nonnull PlayerSkinPart.Variant variant,
+                                                            @Nullable String textureId,
+                                                            @Nonnull String fallbackGradientId) {
+        Map<String, PlayerSkinPartTexture> textures = variant.getTextures();
+
+        if (hasEntries(textures)) {
+            PlayerSkinPartTexture texture = get(textures, textureId);
+            if (texture != null) {
+                if (texture.getBaseColor() == null) {
+                    return attachment(variant.getModel(), texture.getTexture(), part.getGradientSet(), fallbackGradientId);
                 }
-            } else {
-                return new ModelAttachment(
-                        variant.getModel(),
-                        variant.getGreyscaleTexture(),
-                        part.getGradientSet(),
-                        wardrobeVariantId != null ? wardrobeVariantId : bodyGradientId,
-                        DEFAULT_SCALE
-                );
+                return attachment(variant.getModel(), texture.getTexture(), null, null);
             }
         }
 
-        if (part.getTextures() != null) {
-            PlayerSkinPartTexture tex = get(part.getTextures(), wardrobeVariantId);
-            if (tex != null) {
-                return new ModelAttachment(
-                        part.getModel(),
-                        tex.getTexture(),
-                        null,
-                        null,
-                        DEFAULT_SCALE
-                );
+        String texture = variant.getGreyscaleTexture() != null
+                ? variant.getGreyscaleTexture()
+                : part.getGreyscaleTexture();
+
+        return attachment(
+                variant.getModel() != null ? variant.getModel() : part.getModel(),
+                texture,
+                part.getGradientSet(),
+                fallbackGradientId
+        );
+    }
+
+    @Nonnull
+    private static ModelAttachment resolvePartAttachment(@Nonnull PlayerSkinPart part,
+                                                         @Nullable String textureId,
+                                                         @Nonnull String fallbackGradientId) {
+        Map<String, PlayerSkinPartTexture> textures = part.getTextures();
+
+        if (hasEntries(textures)) {
+            PlayerSkinPartTexture texture = get(textures, textureId);
+            if (texture != null) {
+                if (texture.getBaseColor() == null) {
+                    return attachment(part.getModel(), texture.getTexture(), part.getGradientSet(), fallbackGradientId);
+                }
+                return attachment(part.getModel(), texture.getTexture(), null, null);
             }
         }
 
-        return fromPlayerSkinPart(part, wardrobeVariantId != null ? wardrobeVariantId : bodyGradientId);
+        return attachment(
+                part.getModel(),
+                part.getGreyscaleTexture(),
+                part.getGradientSet(),
+                fallbackGradientId
+        );
+    }
+
+    @Nonnull
+    private static ModelAttachment attachment(@Nullable String model,
+                                              @Nullable String texture,
+                                              @Nullable String gradientSet,
+                                              @Nullable String gradientId) {
+        return new ModelAttachment(
+                model,
+                texture,
+                emptyToNull(gradientSet),
+                emptyToNull(gradientId),
+                DEFAULT_SCALE);
+    }
+
+    @Nullable
+    private static String emptyToNull(@Nullable String value) {
+        return value == null || value.isEmpty() ? null : value;
+    }
+
+    private static <K, V> boolean hasEntries(@Nullable Map<K, V> map) {
+        return map != null && !map.isEmpty();
     }
 
     @Nullable
     private static <K, V> V get(@Nullable Map<K, V> map, @Nullable K key) {
-        return (map == null || key == null) ? null : map.get(key);
+        return map == null || key == null ? null : map.get(key);
     }
 }

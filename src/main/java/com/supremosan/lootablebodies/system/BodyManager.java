@@ -1,15 +1,16 @@
 package com.supremosan.lootablebodies.system;
 
+import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
-import com.hypixel.hytale.math.vector.Vector3d;
+import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.asset.type.model.config.Model;
 import com.hypixel.hytale.server.core.asset.type.model.config.ModelAsset;
 import com.hypixel.hytale.server.core.inventory.InventoryComponent;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.inventory.container.ItemContainer;
 import com.hypixel.hytale.server.core.inventory.container.SimpleItemContainer;
-import com.hypixel.hytale.server.core.modules.entity.component.ModelComponent;
+import com.hypixel.hytale.server.core.modules.entity.component.DisplayNameComponent;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.modules.entity.player.PlayerSkinComponent;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
@@ -20,15 +21,18 @@ import com.supremosan.lootablebodies.LootableBodies;
 import com.supremosan.lootablebodies.components.BodyComponent;
 import com.supremosan.lootablebodies.components.BodySource;
 import it.unimi.dsi.fastutil.Pair;
+import org.joml.Vector3d;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 
 public class BodyManager {
     private static final String BODY_DEATH_ROLE = "Body_Death_Entity_Role";
     private static final String BODY_LOGOUT_ROLE = "Body_Logout_Entity_Role";
+    private static final float DEFAULT_SCALE = 1.0F;
 
     public static void spawnBody(
             Store<EntityStore> store,
@@ -37,8 +41,14 @@ public class BodyManager {
             ItemStack[] hotbarItems,
             ItemStack[] backpackItems,
             ItemStack[] armorItems,
+            ItemStack[] utilityItems,
+            ItemStack[] toolItems,
             BodySource source
     ) {
+        if (ref == null || !ref.isValid()) {
+            return;
+        }
+
         TransformComponent transformComponent = store.getComponent(ref, TransformComponent.getComponentType());
         if (transformComponent == null) {
             return;
@@ -52,6 +62,14 @@ public class BodyManager {
         PlayerRef playerRefComponent = store.getComponent(ref, PlayerRef.getComponentType());
         String ownerUuid = playerRefComponent != null ? playerRefComponent.getUuid().toString() : "";
 
+        // One active body per owner at a time: clear any stale body before spawning a new one.
+        if (!ownerUuid.isEmpty()) {
+            Ref<EntityStore> existingBody = findBodyRefByPlayer(playerRefComponent.getUuid(), null, store);
+            if (existingBody != null && existingBody.isValid()) {
+                forceRemoveBody(existingBody, existingBody.getStore());
+            }
+        }
+
         String skinSerialized = serializePlayerSkin(playerSkinComponent);
 
         String roleName = source == BodySource.DEATH ? BODY_DEATH_ROLE : BODY_LOGOUT_ROLE;
@@ -60,7 +78,27 @@ public class BodyManager {
             return;
         }
 
-        Model newModel = Model.createScaledModel(Objects.requireNonNull(ModelAsset.getAssetMap().getAsset("Player")), 1.0F);
+        ModelAsset playerModelAsset = ModelAsset.getAssetMap().getAsset("Player");
+        if (playerModelAsset == null) {
+            return;
+        }
+
+        float scale = DEFAULT_SCALE;
+        try {
+            float assetScale = playerModelAsset.getMinScale();
+            if (assetScale > 0f) {
+                scale = assetScale;
+            }
+        } catch (Exception ignored) {
+        }
+
+        Model newModel;
+        try {
+            newModel = Model.createScaledModel(playerModelAsset, scale);
+        } catch (Exception ignored) {
+            return;
+        }
+
         Vector3d position = transformComponent.getPosition();
 
         Pair<Ref<EntityStore>, NPCEntity> pair = NPCPlugin.get().spawnEntity(
@@ -76,20 +114,25 @@ public class BodyManager {
             return;
         }
 
-        Store<EntityStore> newEntityStore = pair.first().getStore();
         Ref<EntityStore> newEntityRef = pair.first();
-
-        newEntityStore.putComponent(newEntityRef, ModelComponent.getComponentType(), new ModelComponent(newModel));
+        Store<EntityStore> newEntityStore = newEntityRef.getStore();
 
         PlayerSkinComponent skinComp = new PlayerSkinComponent(playerSkinComponent.getPlayerSkin().clone());
         newEntityStore.putComponent(newEntityRef, PlayerSkinComponent.getComponentType(), skinComp);
         skinComp.setNetworkOutdated();
+
+        String playerName = playerRefComponent != null ? playerRefComponent.getUsername() : null;
+        newEntityStore.putComponent(newEntityRef, DisplayNameComponent.getComponentType(), new DisplayNameComponent(
+                Message.translation("server.npcRoles.Body_Entity.name").param("player", playerName != null ? playerName : "")
+        ));
 
         List<ItemStack> allItems = new ArrayList<>();
         addNonEmpty(storageItems, allItems);
         addNonEmpty(hotbarItems, allItems);
         addNonEmpty(backpackItems, allItems);
         addNonEmpty(armorItems, allItems);
+        addNonEmpty(utilityItems, allItems);
+        addNonEmpty(toolItems, allItems);
 
         List<ItemStack> merged = mergeStacks(allItems);
         short capacity = (short) Math.max(merged.size(), 1);
@@ -105,6 +148,8 @@ public class BodyManager {
         bodyComponent.setHotbarItems(hotbarItems);
         bodyComponent.setBackpackItems(backpackItems);
         bodyComponent.setArmorItems(armorItems);
+        bodyComponent.setUtilityItems(utilityItems);
+        bodyComponent.setToolItems(toolItems);
         newEntityStore.putComponent(newEntityRef, LootableBodies.bodyComponentType, bodyComponent);
     }
 
@@ -140,7 +185,7 @@ public class BodyManager {
     }
 
     public static void syncBodyToPlayer(UUID uuid, Store<EntityStore> playerStore, Ref<EntityStore> playerRef) {
-        if (uuid == null || playerStore == null || playerRef == null) {
+        if (uuid == null || playerStore == null || playerRef == null || !playerRef.isValid()) {
             return;
         }
 
@@ -159,32 +204,42 @@ public class BodyManager {
 
         InventoryComponent.Storage bodyStorageComp = bodyStore.getComponent(bodyRef, InventoryComponent.Storage.getComponentType());
         ItemContainer bodyLive = bodyStorageComp != null ? bodyStorageComp.getInventory() : null;
+        if (bodyLive == null) {
+            forceRemoveBody(bodyRef, bodyStore);
+            return;
+        }
 
-        InventoryComponent.Storage playerStorageComp = playerStore.getComponent(playerRef, InventoryComponent.Storage.getComponentType());
-        InventoryComponent.Hotbar playerHotbarComp = playerStore.getComponent(playerRef, InventoryComponent.Hotbar.getComponentType());
-        InventoryComponent.Backpack playerBackpackComp = playerStore.getComponent(playerRef, InventoryComponent.Backpack.getComponentType());
-        InventoryComponent.Armor playerArmorComp = playerStore.getComponent(playerRef, InventoryComponent.Armor.getComponentType());
+        // Move semantics: the body holds the owner's items while they are away, so the player's
+        // reloaded inventory is cleared per section and refilled from the corpse. Anything that
+        // does not fit back stays in the body for manual looting.
+        clearSection(playerStore, playerRef, InventoryComponent.Storage.getComponentType());
+        clearSection(playerStore, playerRef, InventoryComponent.Hotbar.getComponentType());
+        clearSection(playerStore, playerRef, InventoryComponent.Backpack.getComponentType());
+        clearSection(playerStore, playerRef, InventoryComponent.Armor.getComponentType());
+        clearSection(playerStore, playerRef, InventoryComponent.Utility.getComponentType());
+        clearSection(playerStore, playerRef, InventoryComponent.Tool.getComponentType());
 
-        ItemContainer playerStorage = playerStorageComp != null ? playerStorageComp.getInventory() : null;
-        ItemContainer playerHotbar = playerHotbarComp != null ? playerHotbarComp.getInventory() : null;
-        ItemContainer playerBackpack = playerBackpackComp != null ? playerBackpackComp.getInventory() : null;
-        ItemContainer playerArmor = playerArmorComp != null ? playerArmorComp.getInventory() : null;
+        restoreFromLive(bodyComponent.getStorageItems(), bodyLive, playerStore, playerRef, InventoryComponent.Storage.getComponentType());
+        restoreFromLive(bodyComponent.getHotbarItems(), bodyLive, playerStore, playerRef, InventoryComponent.Hotbar.getComponentType());
+        restoreFromLive(bodyComponent.getBackpackItems(), bodyLive, playerStore, playerRef, InventoryComponent.Backpack.getComponentType());
+        restoreFromLive(bodyComponent.getArmorItems(), bodyLive, playerStore, playerRef, InventoryComponent.Armor.getComponentType());
+        restoreFromLive(bodyComponent.getUtilityItems(), bodyLive, playerStore, playerRef, InventoryComponent.Utility.getComponentType());
+        restoreFromLive(bodyComponent.getToolItems(), bodyLive, playerStore, playerRef, InventoryComponent.Tool.getComponentType());
 
-        clearContainer(playerStorage);
-        clearContainer(playerHotbar);
-        clearContainer(playerBackpack);
-        clearContainer(playerArmor);
-
-        restoreFromLiveBody(bodyComponent.getStorageItems(), bodyLive, playerStorage);
-        restoreFromLiveBody(bodyComponent.getHotbarItems(), bodyLive, playerHotbar);
-        restoreFromLiveBody(bodyComponent.getBackpackItems(), bodyLive, playerBackpack);
-        restoreFromLiveBody(bodyComponent.getArmorItems(), bodyLive, playerArmor);
-
-        forceRemoveBody(bodyRef, bodyStore);
+        // Only remove the corpse once it is completely empty, so nothing is ever lost.
+        if (bodyLive.isEmpty()) {
+            forceRemoveBody(bodyRef, bodyStore);
+        }
     }
 
-    private static void clearContainer(ItemContainer container) {
-        if (container == null) return;
+    private static void clearSection(@Nonnull Store<EntityStore> playerStore,
+                                     @Nonnull Ref<EntityStore> playerRef,
+                                     @Nonnull ComponentType<EntityStore, ? extends InventoryComponent> componentType) {
+        @SuppressWarnings("unchecked")
+        InventoryComponent component = playerStore.getComponent(playerRef, (ComponentType<EntityStore, InventoryComponent>) componentType);
+        if (component == null) return;
+
+        ItemContainer container = component.getInventory();
         for (short slot = 0; slot < container.getCapacity(); ++slot) {
             if (!ItemStack.isEmpty(container.getItemStack(slot))) {
                 container.removeItemStackFromSlot(slot);
@@ -192,20 +247,30 @@ public class BodyManager {
         }
     }
 
-    private static void restoreFromLiveBody(ItemStack[] snapshot, ItemContainer bodyLive, ItemContainer playerTarget) {
-        if (snapshot == null || playerTarget == null || bodyLive == null) return;
+    private static void restoreFromLive(@Nullable ItemStack[] snapshot,
+                                        @Nonnull ItemContainer bodyLive,
+                                        @Nonnull Store<EntityStore> playerStore,
+                                        @Nonnull Ref<EntityStore> playerRef,
+                                        @Nonnull ComponentType<EntityStore, ? extends InventoryComponent> componentType) {
+        if (snapshot == null || snapshot.length == 0) return;
+
+        @SuppressWarnings("unchecked")
+        InventoryComponent component = playerStore.getComponent(playerRef, (ComponentType<EntityStore, InventoryComponent>) componentType);
+        if (component == null) return;
+
+        ItemContainer playerTarget = component.getInventory();
         for (short slot = 0; slot < snapshot.length && slot < playerTarget.getCapacity(); ++slot) {
             ItemStack original = snapshot[slot];
             if (ItemStack.isEmpty(original)) continue;
 
-            ItemStack remaining = consumeFromLive(original, bodyLive);
-            if (!ItemStack.isEmpty(remaining)) {
-                playerTarget.setItemStackForSlot(slot, remaining);
+            ItemStack taken = drainFromLive(original, bodyLive);
+            if (!ItemStack.isEmpty(taken)) {
+                playerTarget.setItemStackForSlot(slot, taken);
             }
         }
     }
 
-    private static ItemStack consumeFromLive(ItemStack original, ItemContainer bodyLive) {
+    private static ItemStack drainFromLive(ItemStack original, ItemContainer bodyLive) {
         for (short slot = 0; slot < bodyLive.getCapacity(); ++slot) {
             ItemStack live = bodyLive.getItemStack(slot);
             if (ItemStack.isEmpty(live) || !live.isStackableWith(original)) continue;
@@ -230,7 +295,13 @@ public class BodyManager {
             return;
         }
 
-        NPCEntity npcEntity = bodyStore.getComponent(bodyRef, Objects.requireNonNull(NPCEntity.getComponentType()));
+        @Nullable
+        ComponentType<EntityStore, NPCEntity> npcComponentType = NPCEntity.getComponentType();
+        if (npcComponentType == null) {
+            return;
+        }
+
+        NPCEntity npcEntity = bodyStore.getComponent(bodyRef, npcComponentType);
         if (npcEntity == null) {
             return;
         }

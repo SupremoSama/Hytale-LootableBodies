@@ -9,7 +9,6 @@ import com.hypixel.hytale.component.dependency.SystemDependency;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.math.util.MathUtil;
 import com.hypixel.hytale.protocol.GameMode;
-import com.hypixel.hytale.server.core.asset.type.gameplay.DeathConfig;
 import com.hypixel.hytale.server.core.asset.type.gameplay.DeathConfig.ItemsLossMode;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.inventory.InventoryComponent;
@@ -62,13 +61,14 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
         UUID uuid = playerRef.getUuid();
         World world = store.getExternalData().getWorld();
 
-        if (LootableBodies.isBodySpawnAllowed(world)) {
+        if (!LootableBodies.isBodySpawnAllowed(world)) {
             return;
         }
 
-        DeathConfig deathConfig = world.getDeathConfig();
-
-        if (deathConfig.getItemsLossMode() == ItemsLossMode.NONE) {
+        // Use the state configured by PlayerDropItemsConfig (or any other plugin override),
+        // keeping the mod in sync with what the death screen and drop systems observe.
+        ItemsLossMode lossMode = component.getItemsLossMode();
+        if (lossMode == ItemsLossMode.NONE) {
             return;
         }
 
@@ -81,11 +81,15 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
         InventoryComponent.Storage storageComp = store.getComponent(ref, InventoryComponent.Storage.getComponentType());
         InventoryComponent.Hotbar hotbarComp = store.getComponent(ref, InventoryComponent.Hotbar.getComponentType());
         InventoryComponent.Backpack backpackComp = store.getComponent(ref, InventoryComponent.Backpack.getComponentType());
+        InventoryComponent.Utility utilityComp = store.getComponent(ref, InventoryComponent.Utility.getComponentType());
+        InventoryComponent.Tool toolComp = store.getComponent(ref, InventoryComponent.Tool.getComponentType());
 
         ItemContainer armorContainer = armorComp != null ? armorComp.getInventory() : null;
         ItemContainer storageContainer = storageComp != null ? storageComp.getInventory() : null;
         ItemContainer hotbarContainer = hotbarComp != null ? hotbarComp.getInventory() : null;
         ItemContainer backpackContainer = backpackComp != null ? backpackComp.getInventory() : null;
+        ItemContainer utilityContainer = utilityComp != null ? utilityComp.getInventory() : null;
+        ItemContainer toolContainer = toolComp != null ? toolComp.getInventory() : null;
 
         component.setDisplayDataOnDeathScreen(true);
 
@@ -93,15 +97,19 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
         ItemStack[] hotbarItems = createEmptySnapshot(hotbarContainer);
         ItemStack[] backpackItems = createEmptySnapshot(backpackContainer);
         ItemStack[] armorItems = createEmptySnapshot(armorContainer);
+        ItemStack[] utilityItems = createEmptySnapshot(utilityContainer);
+        ItemStack[] toolItems = createEmptySnapshot(toolContainer);
 
         List<ItemStack> itemsToDrop = new ObjectArrayList<>();
 
-        switch (deathConfig.getItemsLossMode()) {
+        switch (lossMode) {
             case ALL: {
                 collectAllLostItems(storageContainer, storageItems, itemsToDrop);
                 collectAllLostItems(hotbarContainer, hotbarItems, itemsToDrop);
                 collectAllLostItems(backpackContainer, backpackItems, itemsToDrop);
                 collectAllLostItems(armorContainer, armorItems, itemsToDrop);
+                collectAllLostItems(utilityContainer, utilityItems, itemsToDrop);
+                collectAllLostItems(toolContainer, toolItems, itemsToDrop);
                 break;
             }
 
@@ -110,11 +118,13 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
                         armorContainer,
                         storageContainer,
                         hotbarContainer,
-                        backpackContainer
+                        backpackContainer,
+                        utilityContainer,
+                        toolContainer
                 };
 
-                if (deathConfig.getItemsDurabilityLossPercentage() > 0.0D) {
-                    double durabilityLossRatio = deathConfig.getItemsDurabilityLossPercentage() / 100.0D;
+                if (component.getItemsDurabilityLossPercentage() > 0.0D) {
+                    double durabilityLossRatio = component.getItemsDurabilityLossPercentage() / 100.0D;
                     boolean hasArmorBroken = false;
 
                     for (ItemContainer itemContainer : allContainers) {
@@ -146,13 +156,15 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
                     }
                 }
 
-                double itemsAmountLossPercentage = deathConfig.getItemsAmountLossPercentage();
+                double itemsAmountLossPercentage = component.getItemsAmountLossPercentage();
                 if (itemsAmountLossPercentage > 0.0D) {
                     double itemAmountLossRatio = itemsAmountLossPercentage / 100.0D;
                     collectConfiguredLostItems(storageContainer, storageItems, itemsToDrop, itemAmountLossRatio);
                     collectConfiguredLostItems(hotbarContainer, hotbarItems, itemsToDrop, itemAmountLossRatio);
                     collectConfiguredLostItems(backpackContainer, backpackItems, itemsToDrop, itemAmountLossRatio);
                     collectConfiguredLostItems(armorContainer, armorItems, itemsToDrop, itemAmountLossRatio);
+                    collectConfiguredLostItems(utilityContainer, utilityItems, itemsToDrop, itemAmountLossRatio);
+                    collectConfiguredLostItems(toolContainer, toolItems, itemsToDrop, itemAmountLossRatio);
                 }
                 break;
             }
@@ -167,7 +179,11 @@ public class CreateBodyOnDeathEvent extends DeathSystems.OnDeathSystem {
 
         if (!itemsToDrop.isEmpty()) {
             component.setItemsLostOnDeath(itemsToDrop);
-            world.execute(() -> BodyManager.spawnBody(store, ref, storageItems, hotbarItems, backpackItems, armorItems, BodySource.DEATH));
+            world.execute(() -> {
+                if (!ref.isValid()) return;
+                BodyManager.spawnBody(store, ref, storageItems, hotbarItems, backpackItems, armorItems,
+                        utilityItems, toolItems, BodySource.DEATH);
+            });
         }
     }
 

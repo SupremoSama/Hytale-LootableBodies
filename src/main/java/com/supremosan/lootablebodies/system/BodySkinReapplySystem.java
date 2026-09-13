@@ -6,6 +6,7 @@ import com.hypixel.hytale.component.RemoveReason;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.HolderSystem;
+import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.protocol.Cosmetic;
 import com.hypixel.hytale.protocol.PlayerSkin;
 import com.hypixel.hytale.server.core.asset.type.model.config.Model;
@@ -18,15 +19,18 @@ import com.supremosan.lootablebodies.listener.CosmeticListener;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.EnumSet;
+import java.util.logging.Level;
 
 public class BodySkinReapplySystem extends HolderSystem<EntityStore> {
 
+    private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
+
     @Override
     public void onEntityAdd(@Nonnull Holder<EntityStore> holder, @Nonnull AddReason addReason, @Nonnull Store<EntityStore> store) {
-        BodyComponent graveComp = holder.getComponent(BodyComponent.getComponentType());
-        if (graveComp == null) return;
+        BodyComponent bodyComponent = holder.getComponent(BodyComponent.getComponentType());
+        if (bodyComponent == null) return;
 
-        PlayerSkin skin = graveComp.toPlayerSkin();
+        PlayerSkin skin = bodyComponent.toPlayerSkin();
 
         PlayerSkinComponent skinComp = new PlayerSkinComponent(skin);
         holder.putComponent(PlayerSkinComponent.getComponentType(), skinComp);
@@ -54,7 +58,8 @@ public class BodySkinReapplySystem extends HolderSystem<EntityStore> {
                     null
             );
             holder.putComponent(ModelComponent.getComponentType(), new ModelComponent(cosmeticModel));
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            LOGGER.at(Level.WARNING).withCause(e).log("[LootableBodies] Failed to build cosmetic body model");
         }
     }
 
