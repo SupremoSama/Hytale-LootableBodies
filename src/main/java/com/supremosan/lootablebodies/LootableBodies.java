@@ -99,9 +99,6 @@ public class LootableBodies extends JavaPlugin {
                 InventoryComponent.Hotbar hotbarComp = store.getComponent(ref, InventoryComponent.Hotbar.getComponentType());
                 InventoryComponent.Backpack backpackComp = store.getComponent(ref, InventoryComponent.Backpack.getComponentType());
                 InventoryComponent.Utility utilityComp = store.getComponent(ref, InventoryComponent.Utility.getComponentType());
-                InventoryComponent.Tool toolComp = store.getComponent(ref, InventoryComponent.Tool.getComponentType());
-                InventoryComponent.AbilitySlots abilityComp = store.getComponent(ref, InventoryComponent.AbilitySlots.getComponentType());
-                InventoryComponent.RuneBag runeBagComp = store.getComponent(ref, InventoryComponent.RuneBag.getComponentType());
                 TransformComponent transform = store.getComponent(ref, TransformComponent.getComponentType());
 
                 if (transform == null) return;
@@ -111,12 +108,9 @@ public class LootableBodies extends JavaPlugin {
                 ItemStack[] backpackItems = snapshotContainer(backpackComp != null ? backpackComp.getInventory() : null);
                 ItemStack[] armorItems = snapshotContainer(armorComp != null ? armorComp.getInventory() : null);
                 ItemStack[] utilityItems = snapshotContainer(utilityComp != null ? utilityComp.getInventory() : null);
-                ItemStack[] toolItems = snapshotContainer(toolComp != null ? toolComp.getInventory() : null);
-                ItemStack[] abilityItems = snapshotContainer(abilityComp != null ? abilityComp.getInventory() : null);
-                ItemStack[] runeBagItems = snapshotContainer(runeBagComp != null ? runeBagComp.getInventory() : null);
 
                 BodyManager.spawnBody(store, ref, storageItems, hotbarItems, backpackItems, armorItems,
-                        utilityItems, toolItems, abilityItems, runeBagItems, BodySource.LOGOUT);
+                        utilityItems, BodySource.LOGOUT);
 
                 // Rust inventory sync: clear player inventory while sleeper holds items in the world
                 BodyManager.clearSection(store, ref, InventoryComponent.Storage.getComponentType());
@@ -124,9 +118,6 @@ public class LootableBodies extends JavaPlugin {
                 BodyManager.clearSection(store, ref, InventoryComponent.Backpack.getComponentType());
                 BodyManager.clearSection(store, ref, InventoryComponent.Armor.getComponentType());
                 BodyManager.clearSection(store, ref, InventoryComponent.Utility.getComponentType());
-                BodyManager.clearSection(store, ref, InventoryComponent.Tool.getComponentType());
-                BodyManager.clearSection(store, ref, InventoryComponent.AbilitySlots.getComponentType());
-                BodyManager.clearSection(store, ref, InventoryComponent.RuneBag.getComponentType());
             });
         });
 
@@ -164,7 +155,12 @@ public class LootableBodies extends JavaPlugin {
         if (container == null) return new ItemStack[0];
         ItemStack[] snapshot = new ItemStack[container.getCapacity()];
         for (short i = 0; i < container.getCapacity(); ++i) {
-            snapshot[i] = container.getItemStack(i);
+            ItemStack stack = container.getItemStack(i);
+            if (!ItemStack.isEmpty(stack) && (stack.getItem() == null || stack.getItem().dropsOnDeath())) {
+                snapshot[i] = stack;
+            } else {
+                snapshot[i] = ItemStack.EMPTY;
+            }
         }
         return snapshot;
     }

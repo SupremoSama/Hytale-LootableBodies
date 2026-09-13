@@ -55,9 +55,6 @@ public class BodyManager {
             ItemStack[] backpackItems,
             ItemStack[] armorItems,
             ItemStack[] utilityItems,
-            ItemStack[] toolItems,
-            ItemStack[] abilityItems,
-            ItemStack[] runeBagItems,
             BodySource source
     ) {
         if (ref == null || !ref.isValid()) {
@@ -156,9 +153,6 @@ public class BodyManager {
         addNonEmpty(backpackItems, allItems);
         addNonEmpty(armorItems, allItems);
         addNonEmpty(utilityItems, allItems);
-        addNonEmpty(toolItems, allItems);
-        addNonEmpty(abilityItems, allItems);
-        addNonEmpty(runeBagItems, allItems);
 
         List<ItemStack> merged = mergeStacks(allItems);
         short capacity = (short) Math.max(36, ((merged.size() + 8) / 9) * 9);
@@ -173,9 +167,6 @@ public class BodyManager {
         bodyComponent.setBackpackItems(backpackItems != null ? backpackItems : new ItemStack[0]);
         bodyComponent.setArmorItems(armorItems != null ? armorItems : new ItemStack[0]);
         bodyComponent.setUtilityItems(utilityItems != null ? utilityItems : new ItemStack[0]);
-        bodyComponent.setToolItems(toolItems != null ? toolItems : new ItemStack[0]);
-        bodyComponent.setAbilityItems(abilityItems != null ? abilityItems : new ItemStack[0]);
-        bodyComponent.setRuneBagItems(runeBagItems != null ? runeBagItems : new ItemStack[0]);
 
         Pair<Ref<EntityStore>, NPCEntity> pair = NPCPlugin.get().spawnEntity(
                 store,
@@ -299,9 +290,6 @@ public class BodyManager {
         clearSection(playerStore, playerRef, InventoryComponent.Backpack.getComponentType());
         clearSection(playerStore, playerRef, InventoryComponent.Armor.getComponentType());
         clearSection(playerStore, playerRef, InventoryComponent.Utility.getComponentType());
-        clearSection(playerStore, playerRef, InventoryComponent.Tool.getComponentType());
-        clearSection(playerStore, playerRef, InventoryComponent.AbilitySlots.getComponentType());
-        clearSection(playerStore, playerRef, InventoryComponent.RuneBag.getComponentType());
 
         // Pass 1: restore matching items to their original equipment and inventory slots
         restoreSlotMatch(bodyComponent.getArmorItems(), bodyLive, playerStore, playerRef, InventoryComponent.Armor.getComponentType());
@@ -309,16 +297,15 @@ public class BodyManager {
         restoreSlotMatch(bodyComponent.getBackpackItems(), bodyLive, playerStore, playerRef, InventoryComponent.Backpack.getComponentType());
         restoreSlotMatch(bodyComponent.getStorageItems(), bodyLive, playerStore, playerRef, InventoryComponent.Storage.getComponentType());
         restoreSlotMatch(bodyComponent.getUtilityItems(), bodyLive, playerStore, playerRef, InventoryComponent.Utility.getComponentType());
-        restoreSlotMatch(bodyComponent.getToolItems(), bodyLive, playerStore, playerRef, InventoryComponent.Tool.getComponentType());
-        restoreSlotMatch(bodyComponent.getAbilityItems(), bodyLive, playerStore, playerRef, InventoryComponent.AbilitySlots.getComponentType());
-        restoreSlotMatch(bodyComponent.getRuneBagItems(), bodyLive, playerStore, playerRef, InventoryComponent.RuneBag.getComponentType());
 
         // Pass 2: any items remaining in bodyLive (unmatched, extra items added while offline, etc.)
         List<ItemStack> leftoverItems = new ArrayList<>();
         for (short slot = 0; slot < bodyLive.getCapacity(); ++slot) {
             ItemStack live = bodyLive.getItemStack(slot);
             if (!ItemStack.isEmpty(live)) {
-                leftoverItems.add(live);
+                if (live.getItem() == null || live.getItem().dropsOnDeath()) {
+                    leftoverItems.add(live);
+                }
                 bodyLive.removeItemStackFromSlot(slot);
             }
         }
@@ -356,7 +343,8 @@ public class BodyManager {
 
         ItemContainer container = component.getInventory();
         for (short slot = 0; slot < container.getCapacity(); ++slot) {
-            if (!ItemStack.isEmpty(container.getItemStack(slot))) {
+            ItemStack stack = container.getItemStack(slot);
+            if (!ItemStack.isEmpty(stack) && (stack.getItem() == null || stack.getItem().dropsOnDeath())) {
                 container.removeItemStackFromSlot(slot);
             }
         }
@@ -524,7 +512,9 @@ public class BodyManager {
     private static void addNonEmpty(ItemStack[] items, List<ItemStack> target) {
         if (items == null) return;
         for (ItemStack s : items) {
-            if (!ItemStack.isEmpty(s)) target.add(s);
+            if (!ItemStack.isEmpty(s) && (s.getItem() == null || s.getItem().dropsOnDeath())) {
+                target.add(s);
+            }
         }
     }
 
