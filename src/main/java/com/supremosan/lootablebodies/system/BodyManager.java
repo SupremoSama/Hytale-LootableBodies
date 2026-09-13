@@ -206,9 +206,10 @@ public class BodyManager {
             movementStates = new MovementStatesComponent();
             newEntityStore.putComponent(newEntityRef, MovementStatesComponent.getComponentType(), movementStates);
         }
-        movementStates.getMovementStates().sleeping = true;
+        boolean isSleeping = source == BodySource.LOGOUT;
+        movementStates.getMovementStates().sleeping = isSleeping;
         movementStates.getMovementStates().idle = true;
-        movementStates.getSentMovementStates().sleeping = true;
+        movementStates.getSentMovementStates().sleeping = isSleeping;
         movementStates.getSentMovementStates().idle = true;
 
         String animToPlay = source == BodySource.DEATH ? "Death" : "Sleep2";

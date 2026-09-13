@@ -119,29 +119,24 @@ public final class CosmeticListener {
         map.put("FluidIdlePassive", silentPassive);
 
         if (source == BodySource.DEATH) {
-            // Corpse: Lying flat on back on the ground, eyes closed, completely motionless (speed = 0)
-            ModelAsset.AnimationSet sleepSet = map.get("Sleep");
-            if (sleepSet != null && sleepSet.getAnimations() != null && sleepSet.getAnimations().length > 0) {
-                ModelAsset.Animation[] sourceAnims = sleepSet.getAnimations();
-                ModelAsset.Animation[] targetAnims = new ModelAsset.Animation[sourceAnims.length];
-                for (int i = 0; i < sourceAnims.length; i++) {
-                    ModelAsset.Animation src = sourceAnims[i];
-                    targetAnims[i] = new ModelAsset.Animation(
-                            "Sleep",
-                            src.getAnimation(),
-                            0.0f,
-                            0.2f,
-                            true,
-                            1.0f,
-                            new int[0],
-                            null
-                    );
-                }
-                ModelAsset.AnimationSet corpseSet = new ModelAsset.AnimationSet(targetAnims, null);
-                map.put("Idle", corpseSet);
-                map.put("Sleep", corpseSet);
-                map.put("Sleep2", corpseSet);
-            }
+            // Corpse: Freeze on the final frame of the Death collapse animation (motionless, eyes closed)
+            ModelAsset.Animation corpseAnim = new ModelAsset.Animation(
+                    "Death_Corpse_Hold",
+                    "Characters/Animations/Damage/Default/Death_Corpse_Hold.blockyanim",
+                    1.0f,
+                    0.2f,
+                    true,
+                    1.0f,
+                    new int[0],
+                    null
+            );
+            ModelAsset.AnimationSet corpseSet = new ModelAsset.AnimationSet(
+                    new ModelAsset.Animation[]{corpseAnim},
+                    null
+            );
+            map.put("Idle", corpseSet);
+            map.put("Sleep", corpseSet);
+            map.put("Sleep2", corpseSet);
         } else {
             // BodySource.LOGOUT: Sleep2 (curled on side, looping, eyes closed)
             ModelAsset.AnimationSet sleepSet = map.get("Sleep2");
